@@ -15,9 +15,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
-from reportlab.pdfbase.pdfmetrics import stringWidth
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = BASE_DIR / "data"
@@ -69,7 +68,9 @@ ALLOWED_SORT_COLUMNS = {
     "created_at": "created_at",
 }
 
-DEFAULT_FUTURE_MONTHS = 8
+MIN_MONTH_KEY = "2026-04"
+MAX_MONTH_KEY = "2030-12"
+PRIVATE_COLUMNS = [f"field_{index}" for index in range(1, 11)]
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
@@ -122,6 +123,26 @@ def shift_month(year_number: int, month_number: int, offset: int) -> tuple[int, 
     return next_year, next_month
 
 
+def compare_month_key(month_key_a: str, month_key_b: str) -> int:
+    year_a, month_a = parse_month_key(month_key_a)
+    year_b, month_b = parse_month_key(month_key_b)
+    if year_a == year_b and month_a == month_b:
+        return 0
+    return -1 if (year_a, month_a) < (year_b, month_b) else 1
+
+
+def clamp_month_key(month_key: str) -> str:
+    if compare_month_key(month_key, MIN_MONTH_KEY) < 0:
+        return MIN_MONTH_KEY
+    if compare_month_key(month_key, MAX_MONTH_KEY) > 0:
+        return MAX_MONTH_KEY
+    return month_key
+
+
+def is_month_allowed(month_key: str) -> bool:
+    return compare_month_key(month_key, MIN_MONTH_KEY) >= 0 and compare_month_key(month_key, MAX_MONTH_KEY) <= 0
+
+
 def to_int(value: Any, field_name: str) -> int:
     if value in (None, ""):
         return 0
@@ -150,14 +171,16 @@ def calculate_total(record: dict[str, Any]) -> float:
     )
 
 
-def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def validate_main_payload(payload: dict[str, Any]) -> dict[str, Any]:
     partner_name = (payload.get("partner_name") or "").strip()
     if not partner_name:
         raise ValueError("O nome do parceiro ou cliente e obrigatorio.")
 
-    month_key = (payload.get("month_key") or "").strip()
+    month_key = clamp_month_key((payload.get("month_key") or "").strip())
     if not month_key:
         raise ValueError("O mes ativo e obrigatorio.")
+    if not is_month_allowed(month_key):
+        raise ValueError("O mes precisa estar entre Abril de 2026 e Dezembro de 2030.")
 
     year_number, month_number = parse_month_key(month_key)
     record = {
@@ -167,17 +190,11 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "period_label": label_from_month(month_number),
         "partner_name": partner_name,
         "transferencia_qty": to_int(payload.get("transferencia_qty"), "transferencia_qty"),
-        "combo_transferencia_qty": to_int(
-            payload.get("combo_transferencia_qty"),
-            "combo_transferencia_qty",
-        ),
+        "combo_transferencia_qty": to_int(payload.get("combo_transferencia_qty"), "combo_transferencia_qty"),
         "cautelar_qty": to_int(payload.get("cautelar_qty"), "cautelar_qty"),
         "pesquisa_qty": to_int(payload.get("pesquisa_qty"), "pesquisa_qty"),
         "unit_transferencia": to_float(payload.get("unit_transferencia"), "unit_transferencia"),
-        "unit_combo_transferencia": to_float(
-            payload.get("unit_combo_transferencia"),
-            "unit_combo_transferencia",
-        ),
+        "unit_combo_transferencia": to_float(payload.get("unit_combo_transferencia"), "unit_combo_transferencia"),
         "unit_cautelar": to_float(payload.get("unit_cautelar"), "unit_cautelar"),
         "unit_pesquisa": to_float(payload.get("unit_pesquisa"), "unit_pesquisa"),
     }
@@ -196,10 +213,35 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"O campo '{field_name}' nao pode ser negativo.")
 
     record["total_value"] = calculate_total(record)
+    record["transferencia_total_value"] = round(record["transferencia_qty"] * record["unit_transferencia"], 2)
+    record["combo_transferencia_total_value"] = round(
+        record["combo_transferencia_qty"] * record["unit_combo_transferencia"],
+        2,
+    )
+    record["cautelar_total_value"] = round(record["cautelar_qty"] * record["unit_cautelar"], 2)
+    record["pesquisa_total_value"] = round(record["pesquisa_qty"] * record["unit_pesquisa"], 2)
     return record
 
 
-def serialize_record(row: sqlite3.Row) -> dict[str, Any]:
+def validate_private_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    month_key = clamp_month_key((payload.get("month_key") or "").strip())
+    if not month_key:
+        raise ValueError("O mes ativo e obrigatorio.")
+    if not is_month_allowed(month_key):
+        raise ValueError("O mes precisa estar entre Abril de 2026 e Dezembro de 2030.")
+
+    year_number, month_number = parse_month_key(month_key)
+    record: dict[str, Any] = {
+        "month_key": month_key,
+        "year_number": year_number,
+        "month_number": month_number,
+    }
+    for field_name in PRIVATE_COLUMNS:
+        record[field_name] = (payload.get(field_name) or "").strip()
+    return record
+
+
+def serialize_main_record(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"],
         "month_key": row["month_key"],
@@ -219,8 +261,23 @@ def serialize_record(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def serialize_private_record(row: sqlite3.Row) -> dict[str, Any]:
+    result = {
+        "id": row["id"],
+        "month_key": row["month_key"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+    for field_name in PRIVATE_COLUMNS:
+        result[field_name] = row[field_name]
+    return result
+
+
 def ensure_month(connection: sqlite3.Connection, year_number: int, month_number: int) -> str:
     month_key = month_key_from_parts(year_number, month_number)
+    if not is_month_allowed(month_key):
+        raise ValueError("O mes precisa estar entre Abril de 2026 e Dezembro de 2030.")
+
     connection.execute(
         """
         INSERT OR IGNORE INTO months (
@@ -244,7 +301,7 @@ def ensure_month(connection: sqlite3.Connection, year_number: int, month_number:
 
 def get_default_month_key() -> str:
     now = datetime.now()
-    return month_key_from_parts(now.year, now.month)
+    return clamp_month_key(month_key_from_parts(now.year, now.month))
 
 
 def infer_seed_month_map(seed_records: list[dict[str, Any]]) -> dict[str, str]:
@@ -257,56 +314,27 @@ def infer_seed_month_map(seed_records: list[dict[str, Any]]) -> dict[str, str]:
     if not ordered_labels:
         return {}
 
-    now = datetime.now()
-    current_label = label_from_month(now.month)
-    if current_label in ordered_labels:
-        anchor_index = ordered_labels.index(current_label)
-        anchor_year = now.year
-        anchor_month = now.month
-    else:
-        anchor_index = len(ordered_labels) - 1
-        anchor_year = now.year
-        anchor_month = now.month
-
+    current_year, current_month = parse_month_key(MIN_MONTH_KEY)
     month_map: dict[str, str] = {}
-    year_number = anchor_year
-    month_number = anchor_month
-    month_map[ordered_labels[anchor_index]] = month_key_from_parts(year_number, month_number)
-
-    cursor_year = year_number
-    cursor_month = month_number
-    for index in range(anchor_index - 1, -1, -1):
-        cursor_year, cursor_month = shift_month(cursor_year, cursor_month, -1)
-        month_map[ordered_labels[index]] = month_key_from_parts(cursor_year, cursor_month)
-
-    cursor_year = year_number
-    cursor_month = month_number
-    for index in range(anchor_index + 1, len(ordered_labels)):
-        cursor_year, cursor_month = shift_month(cursor_year, cursor_month, 1)
-        month_map[ordered_labels[index]] = month_key_from_parts(cursor_year, cursor_month)
-
+    for label in ordered_labels:
+        month_key = month_key_from_parts(current_year, current_month)
+        if is_month_allowed(month_key):
+            month_map[label] = month_key
+        current_year, current_month = shift_month(current_year, current_month, 1)
     return month_map
 
 
-def ensure_future_months(connection: sqlite3.Connection, future_count: int = DEFAULT_FUTURE_MONTHS) -> None:
-    current_year, current_month = parse_month_key(get_default_month_key())
-    ensure_month(connection, current_year, current_month)
+def ensure_allowed_months(connection: sqlite3.Connection) -> None:
+    start_year, start_month = parse_month_key(MIN_MONTH_KEY)
+    end_year, end_month = parse_month_key(MAX_MONTH_KEY)
 
-    row = connection.execute(
-        """
-        SELECT year_number, month_number
-        FROM months
-        ORDER BY year_number DESC, month_number DESC
-        LIMIT 1
-        """
-    ).fetchone()
+    current_year = start_year
+    current_month = start_month
+    while compare_month_key(month_key_from_parts(current_year, current_month), MAX_MONTH_KEY) <= 0:
+        ensure_month(connection, current_year, current_month)
+        current_year, current_month = shift_month(current_year, current_month, 1)
 
-    latest_year = row["year_number"] if row else current_year
-    latest_month = row["month_number"] if row else current_month
-
-    for offset in range(1, future_count + 1):
-        next_year, next_month = shift_month(latest_year, latest_month, offset)
-        ensure_month(connection, next_year, next_month)
+    connection.execute("DELETE FROM months WHERE month_key < ? OR month_key > ?", (MIN_MONTH_KEY, MAX_MONTH_KEY))
 
 
 def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
@@ -318,6 +346,10 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
             COALESCE(SUM(combo_transferencia_qty), 0) AS combo_transferencia_qty,
             COALESCE(SUM(cautelar_qty), 0) AS cautelar_qty,
             COALESCE(SUM(pesquisa_qty), 0) AS pesquisa_qty,
+            COALESCE(SUM(transferencia_qty * unit_transferencia), 0) AS transferencia_total_value,
+            COALESCE(SUM(combo_transferencia_qty * unit_combo_transferencia), 0) AS combo_transferencia_total_value,
+            COALESCE(SUM(cautelar_qty * unit_cautelar), 0) AS cautelar_total_value,
+            COALESCE(SUM(pesquisa_qty * unit_pesquisa), 0) AS pesquisa_total_value,
             COUNT(*) AS record_count
         FROM records
         WHERE month_key = ?
@@ -344,6 +376,10 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
+        "transferencia_total_value": row["transferencia_total_value"],
+        "combo_transferencia_total_value": row["combo_transferencia_total_value"],
+        "cautelar_total_value": row["cautelar_total_value"],
+        "pesquisa_total_value": row["pesquisa_total_value"],
         "total_operations": total_operations,
         "transferencia_pct": percentage(row["transferencia_qty"]),
         "combo_transferencia_pct": percentage(row["combo_transferencia_qty"]),
@@ -392,10 +428,7 @@ def list_months(connection: sqlite3.Connection) -> list[dict[str, Any]]:
 
 
 def get_month_title(connection: sqlite3.Connection, month_key: str) -> str:
-    row = connection.execute(
-        "SELECT month_title FROM months WHERE month_key = ?",
-        (month_key,),
-    ).fetchone()
+    row = connection.execute("SELECT month_title FROM months WHERE month_key = ?", (month_key,)).fetchone()
     return row["month_title"] if row else month_key
 
 
@@ -408,7 +441,6 @@ def get_month_report(
 ) -> dict[str, Any]:
     conditions = ["month_key = ?"]
     params: list[Any] = [month_key]
-
     if search:
         conditions.append("partner_name LIKE ?")
         params.append(f"%{search}%")
@@ -430,15 +462,27 @@ def get_month_report(
     }
 
 
+def get_private_records(connection: sqlite3.Connection, month_key: str) -> list[sqlite3.Row]:
+    return connection.execute(
+        f"""
+        SELECT id, month_key, {", ".join(PRIVATE_COLUMNS)}, created_at, updated_at
+        FROM private_clients
+        WHERE month_key = ?
+        ORDER BY id DESC
+        """,
+        (month_key,),
+    ).fetchall()
+
+
 def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Relatorio"
 
-    title_fill = PatternFill("solid", fgColor="8D5A2B")
+    title_fill = PatternFill("solid", fgColor="0E2A47")
     title_font = Font(color="FFFFFF", bold=True, size=13)
-    header_fill = PatternFill("solid", fgColor="F3E7D5")
-    header_font = Font(bold=True, color="6D421C")
+    header_fill = PatternFill("solid", fgColor="D4AF37")
+    header_font = Font(bold=True, color="0E2A47")
 
     sheet.merge_cells("A1:J1")
     sheet["A1"] = f"Relatorio Mensal - {report['month_title']}"
@@ -449,6 +493,10 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     summary = report["summary"]
     summary_rows = [
         ("Valor total", summary["total_value"]),
+        ("Total Transferencia", summary["transferencia_total_value"]),
+        ("Total Transf. de Combo", summary["combo_transferencia_total_value"]),
+        ("Total Cautelar", summary["cautelar_total_value"]),
+        ("Total Pesquisa", summary["pesquisa_total_value"]),
         ("Transferencias", summary["transferencia_qty"]),
         ("Transf. de Combo", summary["combo_transferencia_qty"]),
         ("Cautelares", summary["cautelar_qty"]),
@@ -500,18 +548,7 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
         for col_index, value in enumerate(values, start=1):
             sheet.cell(row=current_row, column=col_index, value=value)
 
-    for column_letter, width in {
-        "A": 28,
-        "B": 12,
-        "C": 18,
-        "D": 12,
-        "E": 12,
-        "F": 15,
-        "G": 15,
-        "H": 15,
-        "I": 15,
-        "J": 15,
-    }.items():
+    for column_letter, width in {"A": 28, "B": 12, "C": 18, "D": 12, "E": 12, "F": 15, "G": 15, "H": 15, "I": 15, "J": 15}.items():
         sheet.column_dimensions[column_letter].width = width
 
     buffer = io.BytesIO()
@@ -531,19 +568,16 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         bottomMargin=10 * mm,
     )
     styles = getSampleStyleSheet()
-    story = [
-        Paragraph(f"Relatorio Mensal - {report['month_title']}", styles["Title"]),
-        Spacer(1, 8),
-    ]
+    story = [Paragraph(f"Relatorio Mensal - {report['month_title']}", styles["Title"]), Spacer(1, 8)]
 
     summary = report["summary"]
     summary_data = [
         ["Metrica", "Valor"],
         ["Valor total", f"R$ {summary['total_value']:.2f}"],
-        ["Transferencias", summary["transferencia_qty"]],
-        ["Transf. de Combo", summary["combo_transferencia_qty"]],
-        ["Cautelares", summary["cautelar_qty"]],
-        ["Pesquisas", summary["pesquisa_qty"]],
+        ["Total Transferencia", f"R$ {summary['transferencia_total_value']:.2f}"],
+        ["Total Transf. de Combo", f"R$ {summary['combo_transferencia_total_value']:.2f}"],
+        ["Total Cautelar", f"R$ {summary['cautelar_total_value']:.2f}"],
+        ["Total Pesquisa", f"R$ {summary['pesquisa_total_value']:.2f}"],
         ["% Transferencias", f"{summary['transferencia_pct']}%"],
         ["% Transf. de Combo", f"{summary['combo_transferencia_pct']}%"],
         ["% Cautelares", f"{summary['cautelar_pct']}%"],
@@ -553,17 +587,17 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
     summary_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#8D5A2B")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D6B98E")),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FBF4E7")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F8F4E6")),
             ]
         )
     )
     story.extend([summary_table, Spacer(1, 10)])
 
-    header = [
+    table_data = [[
         "Parceiro",
         "Transfer.",
         "Combo",
@@ -574,8 +608,7 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         "Vlr. Cautelar",
         "Vlr. Pesquisa",
         "Total",
-    ]
-    table_data = [header]
+    ]]
     for row in report["records"]:
         table_data.append(
             [
@@ -600,12 +633,12 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#8D5A2B")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D6B98E")),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FFF9F1")),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FFFDF7")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ]
         )
@@ -649,27 +682,39 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS private_clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                month_key TEXT NOT NULL,
+                field_1 TEXT NOT NULL DEFAULT '',
+                field_2 TEXT NOT NULL DEFAULT '',
+                field_3 TEXT NOT NULL DEFAULT '',
+                field_4 TEXT NOT NULL DEFAULT '',
+                field_5 TEXT NOT NULL DEFAULT '',
+                field_6 TEXT NOT NULL DEFAULT '',
+                field_7 TEXT NOT NULL DEFAULT '',
+                field_8 TEXT NOT NULL DEFAULT '',
+                field_9 TEXT NOT NULL DEFAULT '',
+                field_10 TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
 
-        columns = {
-            row["name"] for row in connection.execute("PRAGMA table_info(records)").fetchall()
-        }
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(records)").fetchall()}
         if "month_key" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN month_key TEXT")
         if "combo_transferencia_qty" not in columns:
-            connection.execute(
-                "ALTER TABLE records ADD COLUMN combo_transferencia_qty INTEGER NOT NULL DEFAULT 0"
-            )
+            connection.execute("ALTER TABLE records ADD COLUMN combo_transferencia_qty INTEGER NOT NULL DEFAULT 0")
         if "unit_combo_transferencia" not in columns:
-            connection.execute(
-                "ALTER TABLE records ADD COLUMN unit_combo_transferencia REAL NOT NULL DEFAULT 0"
-            )
+            connection.execute("ALTER TABLE records ADD COLUMN unit_combo_transferencia REAL NOT NULL DEFAULT 0")
 
         connection.executescript(
             """
             CREATE INDEX IF NOT EXISTS idx_records_partner ON records (partner_name);
             CREATE INDEX IF NOT EXISTS idx_records_month ON records (month_key);
+            CREATE INDEX IF NOT EXISTS idx_private_clients_month ON private_clients (month_key);
             CREATE INDEX IF NOT EXISTS idx_months_sort ON months (year_number, month_number);
             """
         )
@@ -679,8 +724,9 @@ def init_db() -> None:
             seed_records = json.loads(SEED_PATH.read_text(encoding="utf-8-sig"))
             seed_month_map = infer_seed_month_map(seed_records)
             for month_key in sorted(set(seed_month_map.values())):
-                year_number, month_number = parse_month_key(month_key)
-                ensure_month(connection, year_number, month_number)
+                if is_month_allowed(month_key):
+                    year_number, month_number = parse_month_key(month_key)
+                    ensure_month(connection, year_number, month_number)
 
             connection.executemany(
                 """
@@ -703,7 +749,7 @@ def init_db() -> None:
                 """,
                 [
                     (
-                        seed_month_map.get(normalize_text(item["period_label"]), get_default_month_key()),
+                        seed_month_map.get(normalize_text(item["period_label"]), MIN_MONTH_KEY),
                         None,
                         normalize_text(item["period_label"]),
                         0,
@@ -719,51 +765,47 @@ def init_db() -> None:
                         item["total_value"],
                     )
                     for item in seed_records
+                    if is_month_allowed(seed_month_map.get(normalize_text(item["period_label"]), MIN_MONTH_KEY))
                 ],
             )
 
-        existing_bound_months = connection.execute(
+        missing_month_rows = connection.execute(
             """
-            SELECT DISTINCT month_key
+            SELECT period_label, MIN(id) AS first_id
             FROM records
-            WHERE month_key IS NOT NULL AND month_key <> ''
+            WHERE month_key IS NULL OR month_key = ''
+            GROUP BY period_label
+            ORDER BY first_id
             """
+        ).fetchall()
+        if missing_month_rows:
+            inferred_map = infer_seed_month_map([{"period_label": row["period_label"]} for row in missing_month_rows])
+            for label, month_key in inferred_map.items():
+                if is_month_allowed(month_key):
+                    year_number, month_number = parse_month_key(month_key)
+                    ensure_month(connection, year_number, month_number)
+                    connection.execute(
+                        """
+                        UPDATE records
+                        SET month_key = ?
+                        WHERE (month_key IS NULL OR month_key = '')
+                          AND period_label = ?
+                        """,
+                        (month_key, label),
+                    )
+
+        existing_bound_months = connection.execute(
+            "SELECT DISTINCT month_key FROM records WHERE month_key IS NOT NULL AND month_key <> ''"
         ).fetchall()
         for row in existing_bound_months:
-            year_number, month_number = parse_month_key(row["month_key"])
-            ensure_month(connection, year_number, month_number)
-
-        existing_month_keys = connection.execute(
-            "SELECT DISTINCT month_key, period_label FROM records"
-        ).fetchall()
-        if any(not row["month_key"] for row in existing_month_keys):
-            labels = [
-                {"period_label": row["period_label"]}
-                for row in connection.execute(
-                    """
-                    SELECT period_label, MIN(id) AS first_id
-                    FROM records
-                    WHERE (month_key IS NULL OR month_key = '')
-                    GROUP BY period_label
-                    ORDER BY first_id
-                    """
-                ).fetchall()
-            ]
-            inferred_map = infer_seed_month_map(labels)
-            for label, month_key in inferred_map.items():
-                year_number, month_number = parse_month_key(month_key)
+            if is_month_allowed(row["month_key"]):
+                year_number, month_number = parse_month_key(row["month_key"])
                 ensure_month(connection, year_number, month_number)
-                connection.execute(
-                    """
-                    UPDATE records
-                    SET month_key = ?
-                    WHERE (month_key IS NULL OR month_key = '')
-                      AND period_label = ?
-                    """,
-                    (month_key, label),
-                )
 
-        ensure_future_months(connection)
+        connection.execute("DELETE FROM records WHERE month_key IS NULL OR month_key = ''")
+        connection.execute("DELETE FROM records WHERE month_key < ? OR month_key > ?", (MIN_MONTH_KEY, MAX_MONTH_KEY))
+        connection.execute("DELETE FROM private_clients WHERE month_key < ? OR month_key > ?", (MIN_MONTH_KEY, MAX_MONTH_KEY))
+        ensure_allowed_months(connection)
 
 
 @app.route("/")
@@ -779,25 +821,29 @@ def healthcheck():
 @app.get("/api/records")
 def list_records():
     search = (request.args.get("search") or "").strip()
-    month_key = (request.args.get("month_key") or get_default_month_key()).strip()
+    month_key = clamp_month_key((request.args.get("month_key") or get_default_month_key()).strip())
     sort_by = ALLOWED_SORT_COLUMNS.get(request.args.get("sort_by"), "partner_name")
     sort_order = "DESC" if (request.args.get("sort_order") or "").lower() == "desc" else "ASC"
 
     try:
         year_number, month_number = parse_month_key(month_key)
+        if not is_month_allowed(month_key):
+            raise ValueError("O mes precisa estar entre Abril de 2026 e Dezembro de 2030.")
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     with get_db() as connection:
         ensure_month(connection, year_number, month_number)
-        ensure_future_months(connection)
+        ensure_allowed_months(connection)
         report = get_month_report(connection, month_key, search, sort_by, sort_order)
         months = list_months(connection)
         active_month = next((item for item in months if item["month_key"] == month_key), None)
+        private_rows = get_private_records(connection, month_key)
 
     return jsonify(
         {
-            "records": [serialize_record(row) for row in report["records"]],
+            "records": [serialize_main_record(row) for row in report["records"]],
+            "private_records": [serialize_private_record(row) for row in private_rows],
             "months": months,
             "summary": report["summary"],
             "active_month": active_month,
@@ -808,8 +854,12 @@ def list_records():
 
 @app.get("/api/export/<string:month_key>.xlsx")
 def export_month_xlsx(month_key: str):
+    month_key = clamp_month_key(month_key)
     try:
         year_number, month_number = parse_month_key(month_key)
+        ensure_allowed = is_month_allowed(month_key)
+        if not ensure_allowed:
+            raise ValueError("Mes fora do intervalo permitido.")
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -828,8 +878,12 @@ def export_month_xlsx(month_key: str):
 
 @app.get("/api/export/<string:month_key>.pdf")
 def export_month_pdf(month_key: str):
+    month_key = clamp_month_key(month_key)
     try:
         year_number, month_number = parse_month_key(month_key)
+        ensure_allowed = is_month_allowed(month_key)
+        if not ensure_allowed:
+            raise ValueError("Mes fora do intervalo permitido.")
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -850,7 +904,7 @@ def export_month_pdf(month_key: str):
 def create_record():
     payload = request.get_json(silent=True) or {}
     try:
-        record = validate_payload(payload)
+        record = validate_main_payload(payload)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -891,17 +945,16 @@ def create_record():
                 record["total_value"],
             ),
         )
-        ensure_future_months(connection)
         row = connection.execute("SELECT * FROM records WHERE id = ?", (cursor.lastrowid,)).fetchone()
 
-    return jsonify(serialize_record(row)), 201
+    return jsonify(serialize_main_record(row)), 201
 
 
 @app.put("/api/records/<int:record_id>")
 def update_record(record_id: int):
     payload = request.get_json(silent=True) or {}
     try:
-        record = validate_payload(payload)
+        record = validate_main_payload(payload)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -947,10 +1000,9 @@ def update_record(record_id: int):
                 record_id,
             ),
         )
-        ensure_future_months(connection)
         row = connection.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
 
-    return jsonify(serialize_record(row))
+    return jsonify(serialize_main_record(row))
 
 
 @app.delete("/api/records/<int:record_id>")
@@ -959,8 +1011,69 @@ def delete_record(record_id: int):
         cursor = connection.execute("DELETE FROM records WHERE id = ?", (record_id,))
         if cursor.rowcount == 0:
             return jsonify({"error": "Registro nao encontrado."}), 404
-        ensure_future_months(connection)
+    return jsonify({"message": "Registro excluido com sucesso."})
 
+
+@app.post("/api/private-clients")
+def create_private_record():
+    payload = request.get_json(silent=True) or {}
+    try:
+        record = validate_private_payload(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        ensure_month(connection, record["year_number"], record["month_number"])
+        columns = ", ".join(["month_key", *PRIVATE_COLUMNS, "updated_at"])
+        placeholders = ", ".join(["?"] * (len(PRIVATE_COLUMNS) + 1)) + ", CURRENT_TIMESTAMP"
+        values = [record["month_key"], *[record[field_name] for field_name in PRIVATE_COLUMNS]]
+        cursor = connection.execute(
+            f"INSERT INTO private_clients ({columns}) VALUES ({placeholders})",
+            values,
+        )
+        row = connection.execute(
+            f"SELECT id, month_key, {', '.join(PRIVATE_COLUMNS)}, created_at, updated_at FROM private_clients WHERE id = ?",
+            (cursor.lastrowid,),
+        ).fetchone()
+    return jsonify(serialize_private_record(row)), 201
+
+
+@app.put("/api/private-clients/<int:record_id>")
+def update_private_record(record_id: int):
+    payload = request.get_json(silent=True) or {}
+    try:
+        record = validate_private_payload(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        existing = connection.execute("SELECT id FROM private_clients WHERE id = ?", (record_id,)).fetchone()
+        if existing is None:
+            return jsonify({"error": "Registro nao encontrado."}), 404
+
+        ensure_month(connection, record["year_number"], record["month_number"])
+        assignments = ", ".join([f"{field_name} = ?" for field_name in PRIVATE_COLUMNS])
+        connection.execute(
+            f"""
+            UPDATE private_clients
+            SET month_key = ?, {assignments}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            [record["month_key"], *[record[field_name] for field_name in PRIVATE_COLUMNS], record_id],
+        )
+        row = connection.execute(
+            f"SELECT id, month_key, {', '.join(PRIVATE_COLUMNS)}, created_at, updated_at FROM private_clients WHERE id = ?",
+            (record_id,),
+        ).fetchone()
+    return jsonify(serialize_private_record(row))
+
+
+@app.delete("/api/private-clients/<int:record_id>")
+def delete_private_record(record_id: int):
+    with get_db() as connection:
+        cursor = connection.execute("DELETE FROM private_clients WHERE id = ?", (record_id,))
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Registro nao encontrado."}), 404
     return jsonify({"message": "Registro excluido com sucesso."})
 
 

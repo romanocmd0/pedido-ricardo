@@ -1,11 +1,15 @@
+const PRIVATE_FIELDS = Array.from({ length: 10 }, (_, index) => `field_${index + 1}`);
+
 const state = {
   records: [],
+  privateRecords: [],
   months: [],
   activeMonthKey: "",
   sortBy: "partner_name",
   sortOrder: "asc",
   summary: null,
   editingRowId: null,
+  editingPrivateRowId: null,
 };
 
 const elements = {
@@ -15,8 +19,14 @@ const elements = {
   exportXlsxButton: document.querySelector("#export-xlsx-button"),
   exportPdfButton: document.querySelector("#export-pdf-button"),
   newRecordButton: document.querySelector("#new-record-button"),
+  newPrivateRecordButton: document.querySelector("#new-private-record-button"),
   recordsBody: document.querySelector("#records-body"),
+  privateRecordsBody: document.querySelector("#private-records-body"),
+  privateForm: document.querySelector("#private-record-form"),
+  privateFormGrid: document.querySelector("#private-form-grid"),
+  clearPrivateFormButton: document.querySelector("#clear-private-form-button"),
   recordCount: document.querySelector("#record-count"),
+  privateRecordCount: document.querySelector("#private-record-count"),
   periodCount: document.querySelector("#period-count"),
   activeMonthTitle: document.querySelector("#active-month-title"),
   headerTotalValue: document.querySelector("#header-total-value"),
@@ -29,6 +39,10 @@ const elements = {
   summaryCautelarPct: document.querySelector("#summary-cautelar-pct"),
   summaryPesquisaQty: document.querySelector("#summary-pesquisa-qty"),
   summaryPesquisaPct: document.querySelector("#summary-pesquisa-pct"),
+  summaryTransferenciaTotalValue: document.querySelector("#summary-transferencia-total-value"),
+  summaryComboTransferenciaTotalValue: document.querySelector("#summary-combo-transferencia-total-value"),
+  summaryCautelarTotalValue: document.querySelector("#summary-cautelar-total-value"),
+  summaryPesquisaTotalValue: document.querySelector("#summary-pesquisa-total-value"),
   formTitle: document.querySelector("#form-title"),
   formMonthCaption: document.querySelector("#form-month-caption"),
   form: document.querySelector("#record-form"),
@@ -47,10 +61,7 @@ const elements = {
 };
 
 function formatCurrency(value) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(Number(value || 0));
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 }
 
 function formatPercent(value) {
@@ -84,6 +95,14 @@ function currentPayload() {
   };
 }
 
+function privateFormPayload() {
+  const payload = { month_key: state.activeMonthKey };
+  PRIVATE_FIELDS.forEach((fieldName) => {
+    payload[fieldName] = document.querySelector(`#private-${fieldName}`)?.value?.trim() || "";
+  });
+  return payload;
+}
+
 function recordPayloadFromInputs(row) {
   return {
     month_key: state.activeMonthKey,
@@ -97,6 +116,14 @@ function recordPayloadFromInputs(row) {
     unit_cautelar: Number(row.querySelector('[data-field="unit_cautelar"]').value || 0),
     unit_pesquisa: Number(row.querySelector('[data-field="unit_pesquisa"]').value || 0),
   };
+}
+
+function privatePayloadFromInputs(row) {
+  const payload = { month_key: state.activeMonthKey };
+  PRIVATE_FIELDS.forEach((fieldName) => {
+    payload[fieldName] = row.querySelector(`[data-field="${fieldName}"]`).value.trim();
+  });
+  return payload;
 }
 
 function calculateTotal(payload) {
@@ -130,34 +157,45 @@ function resetForm() {
   elements.unitPesquisa.value = 80;
 
   const activeMonth = getActiveMonth();
-  const monthTitle = activeMonth ? activeMonth.month_title : "-";
-  elements.formMonthCaption.textContent = `Mes ativo: ${monthTitle}`;
+  elements.formMonthCaption.textContent = `Mes ativo: ${activeMonth ? activeMonth.month_title : "-"}`;
   updateCalculatedTotal();
+}
+
+function resetPrivateForm() {
+  elements.privateForm.reset();
+}
+
+function buildPrivateForm() {
+  elements.privateFormGrid.innerHTML = "";
+  PRIVATE_FIELDS.forEach((fieldName, index) => {
+    const label = document.createElement("label");
+    label.className = "field";
+    label.innerHTML = `
+      <span>Campo ${index + 1}</span>
+      <input id="private-${fieldName}" type="text" placeholder="Valor ${index + 1}" />
+    `;
+    elements.privateFormGrid.appendChild(label);
+  });
 }
 
 function renderMonthTabs() {
   elements.monthTabs.innerHTML = "";
-
   state.months.forEach((month) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `month-tab ${month.month_key === state.activeMonthKey ? "is-active" : ""}`;
-    button.innerHTML = `
-      <span>${month.month_title}</span>
-      <small>${month.record_count} registro(s)</small>
-    `;
+    button.innerHTML = `<span>${month.month_title}</span><small>${month.record_count} registro(s)</small>`;
     button.addEventListener("click", async () => {
-      if (state.activeMonthKey === month.month_key) {
-        return;
-      }
+      if (state.activeMonthKey === month.month_key) return;
       state.activeMonthKey = month.month_key;
       state.editingRowId = null;
+      state.editingPrivateRowId = null;
       resetForm();
+      resetPrivateForm();
       await loadRecords();
     });
     elements.monthTabs.appendChild(button);
   });
-
   elements.periodCount.textContent = `${state.months.length} meses`;
 }
 
@@ -172,12 +210,17 @@ function renderSummary() {
     combo_transferencia_pct: 0,
     cautelar_pct: 0,
     pesquisa_pct: 0,
+    transferencia_total_value: 0,
+    combo_transferencia_total_value: 0,
+    cautelar_total_value: 0,
+    pesquisa_total_value: 0,
     record_count: 0,
   };
 
   const activeMonth = getActiveMonth();
-  elements.activeMonthTitle.textContent = activeMonth ? activeMonth.month_title : "-";
+  elements.activeMonthTitle.textContent = activeMonth ? activeMonth.month_title : "Relatorio Mensal";
   elements.recordCount.textContent = String(summary.record_count || 0);
+  elements.privateRecordCount.textContent = String(state.privateRecords.length || 0);
   elements.headerTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTransferenciaQty.textContent = String(summary.transferencia_qty || 0);
@@ -188,10 +231,14 @@ function renderSummary() {
   elements.summaryCautelarPct.textContent = formatPercent(summary.cautelar_pct);
   elements.summaryPesquisaQty.textContent = String(summary.pesquisa_qty || 0);
   elements.summaryPesquisaPct.textContent = formatPercent(summary.pesquisa_pct);
+  elements.summaryTransferenciaTotalValue.textContent = formatCurrency(summary.transferencia_total_value);
+  elements.summaryComboTransferenciaTotalValue.textContent = formatCurrency(summary.combo_transferencia_total_value);
+  elements.summaryCautelarTotalValue.textContent = formatCurrency(summary.cautelar_total_value);
+  elements.summaryPesquisaTotalValue.textContent = formatCurrency(summary.pesquisa_total_value);
 }
 
 function renderReadonlyCell(value, field, isCurrency = false) {
-  const display = isCurrency ? formatCurrency(value) : value;
+  const display = isCurrency ? formatCurrency(value) : escapeHtml(value);
   return `<td class="editable-cell" data-start-edit="${field}">${display}</td>`;
 }
 
@@ -200,44 +247,86 @@ function renderEditableCell(value, field, type = "number", step = "1") {
   const inputType = field === "partner_name" ? "text" : type;
   return `
     <td class="editing-cell">
-      <input
-        class="inline-input"
-        data-field="${field}"
-        type="${inputType}"
-        ${inputType === "number" ? `min="0" step="${step}"` : ""}
-        value="${escapeHtml(safeValue)}"
-      />
+      <input class="inline-input" data-field="${field}" type="${inputType}" ${inputType === "number" ? `min="0" step="${step}"` : ""} value="${escapeHtml(safeValue)}" />
     </td>
   `;
 }
 
+function renderPrivateReadonlyCell(value, field) {
+  return `<td class="editable-cell" data-private-start-edit="${field}">${escapeHtml(value)}</td>`;
+}
+
+function renderPrivateEditableCell(value, field) {
+  return `
+    <td class="editing-cell">
+      <input class="inline-input" data-field="${field}" type="text" value="${escapeHtml(value)}" />
+    </td>
+  `;
+}
+
+function recordPayloadFromInlineRecord(record) {
+  return {
+    month_key: state.activeMonthKey,
+    partner_name: record.partner_name,
+    transferencia_qty: Number(record.transferencia_qty || 0),
+    combo_transferencia_qty: Number(record.combo_transferencia_qty || 0),
+    cautelar_qty: Number(record.cautelar_qty || 0),
+    pesquisa_qty: Number(record.pesquisa_qty || 0),
+    unit_transferencia: Number(record.unit_transferencia || 0),
+    unit_combo_transferencia: Number(record.unit_combo_transferencia || 0),
+    unit_cautelar: Number(record.unit_cautelar || 0),
+    unit_pesquisa: Number(record.unit_pesquisa || 0),
+  };
+}
+
 function attachInlineEditing(rowElement, record) {
   rowElement.querySelectorAll("[data-start-edit]").forEach((cell) => {
-    cell.addEventListener("click", async () => {
+    cell.addEventListener("click", () => {
       state.editingRowId = record.id;
       renderTable();
-      const currentRow = elements.recordsBody.querySelector(`tr[data-row-id="${record.id}"]`);
-      const firstInput = currentRow?.querySelector(".inline-input");
-      firstInput?.focus();
+      elements.recordsBody.querySelector(`tr[data-row-id="${record.id}"]`)?.querySelector(".inline-input")?.focus();
+    });
+  });
+}
+
+function attachPrivateInlineEditing(rowElement, record) {
+  rowElement.querySelectorAll("[data-private-start-edit]").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      state.editingPrivateRowId = record.id;
+      renderPrivateTable();
+      elements.privateRecordsBody.querySelector(`tr[data-private-row-id="${record.id}"]`)?.querySelector(".inline-input")?.focus();
     });
   });
 }
 
 async function saveInlineRow(rowElement, recordId) {
-  const payload = recordPayloadFromInputs(rowElement);
   const response = await fetch(`/api/records/${recordId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(recordPayloadFromInputs(rowElement)),
   });
-
   const data = await response.json();
   if (!response.ok) {
     alert(data.error || "Nao foi possivel salvar a linha.");
     return false;
   }
-
   state.editingRowId = null;
+  await loadRecords();
+  return true;
+}
+
+async function saveInlinePrivateRow(rowElement, recordId) {
+  const response = await fetch(`/api/private-clients/${recordId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(privatePayloadFromInputs(rowElement)),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel salvar a linha.");
+    return false;
+  }
+  state.editingPrivateRowId = null;
   await loadRecords();
   return true;
 }
@@ -248,19 +337,16 @@ function attachEditingEvents(rowElement, recordId) {
   const totalCell = rowElement.querySelector(".inline-total");
 
   const saveIfNeeded = async () => {
-    if (isSaving) {
-      return;
-    }
+    if (isSaving) return;
     isSaving = true;
     await saveInlineRow(rowElement, recordId);
     isSaving = false;
   };
 
   const refreshInlineTotal = () => {
-    if (!totalCell) {
-      return;
+    if (totalCell) {
+      totalCell.textContent = formatCurrency(calculateTotal(recordPayloadFromInputs(rowElement)));
     }
-    totalCell.textContent = formatCurrency(calculateTotal(recordPayloadFromInputs(rowElement)));
   };
 
   inputs.forEach((input) => {
@@ -275,24 +361,48 @@ function attachEditingEvents(rowElement, recordId) {
         renderTable();
       }
     });
-
-    input.addEventListener("blur", async () => {
+    input.addEventListener("blur", () => {
       setTimeout(async () => {
-        const stillInside = rowElement.contains(document.activeElement);
-        if (!stillInside) {
-          await saveIfNeeded();
-        }
+        if (!rowElement.contains(document.activeElement)) await saveIfNeeded();
       }, 0);
     });
   });
-
   refreshInlineTotal();
+}
+
+function attachPrivateEditingEvents(rowElement, recordId) {
+  const inputs = rowElement.querySelectorAll(".inline-input");
+  let isSaving = false;
+
+  const saveIfNeeded = async () => {
+    if (isSaving) return;
+    isSaving = true;
+    await saveInlinePrivateRow(rowElement, recordId);
+    isSaving = false;
+  };
+
+  inputs.forEach((input) => {
+    input.addEventListener("keydown", async (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        await saveIfNeeded();
+      }
+      if (event.key === "Escape") {
+        state.editingPrivateRowId = null;
+        renderPrivateTable();
+      }
+    });
+    input.addEventListener("blur", () => {
+      setTimeout(async () => {
+        if (!rowElement.contains(document.activeElement)) await saveIfNeeded();
+      }, 0);
+    });
+  });
 }
 
 function renderTable() {
   if (!state.records.length) {
-    elements.recordsBody.innerHTML =
-      '<tr><td colspan="11" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
+    elements.recordsBody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
     return;
   }
 
@@ -336,44 +446,65 @@ function renderTable() {
     const actionsCell = row.querySelector("td:last-child");
     const actionWrap = document.createElement("div");
     actionWrap.className = "actions";
-
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "icon-button danger-button";
     deleteButton.textContent = "Excluir";
     deleteButton.addEventListener("click", () => removeRecord(record.id));
-
     actionWrap.append(deleteButton);
     actionsCell.appendChild(actionWrap);
     elements.recordsBody.appendChild(row);
 
-    if (isEditing) {
-      attachEditingEvents(row, record.id);
-    } else {
-      attachInlineEditing(row, record);
-    }
+    if (isEditing) attachEditingEvents(row, record.id);
+    else attachInlineEditing(row, record);
   });
 }
 
-function recordPayloadFromInlineRecord(record) {
-  return {
-    month_key: state.activeMonthKey,
-    partner_name: record.partner_name,
-    transferencia_qty: Number(record.transferencia_qty || 0),
-    combo_transferencia_qty: Number(record.combo_transferencia_qty || 0),
-    cautelar_qty: Number(record.cautelar_qty || 0),
-    pesquisa_qty: Number(record.pesquisa_qty || 0),
-    unit_transferencia: Number(record.unit_transferencia || 0),
-    unit_combo_transferencia: Number(record.unit_combo_transferencia || 0),
-    unit_cautelar: Number(record.unit_cautelar || 0),
-    unit_pesquisa: Number(record.unit_pesquisa || 0),
-  };
+function renderPrivateTable() {
+  if (!state.privateRecords.length) {
+    elements.privateRecordsBody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum cliente particular para este mes.</td></tr>';
+    return;
+  }
+
+  elements.privateRecordsBody.innerHTML = "";
+  state.privateRecords.forEach((record) => {
+    const isEditing = state.editingPrivateRowId === record.id;
+    const row = document.createElement("tr");
+    row.dataset.privateRowId = String(record.id);
+
+    if (isEditing) {
+      row.className = "editing-row";
+      row.innerHTML = `
+        ${PRIVATE_FIELDS.map((fieldName) => renderPrivateEditableCell(record[fieldName], fieldName)).join("")}
+        <td></td>
+      `;
+    } else {
+      row.innerHTML = `
+        ${PRIVATE_FIELDS.map((fieldName) => renderPrivateReadonlyCell(record[fieldName], fieldName)).join("")}
+        <td></td>
+      `;
+    }
+
+    const actionsCell = row.querySelector("td:last-child");
+    const actionWrap = document.createElement("div");
+    actionWrap.className = "actions";
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "icon-button danger-button";
+    deleteButton.textContent = "Excluir";
+    deleteButton.addEventListener("click", () => removePrivateRecord(record.id));
+    actionWrap.append(deleteButton);
+    actionsCell.appendChild(actionWrap);
+    elements.privateRecordsBody.appendChild(row);
+
+    if (isEditing) attachPrivateEditingEvents(row, record.id);
+    else attachPrivateInlineEditing(row, record);
+  });
 }
 
 async function loadRecords() {
   if (!state.activeMonthKey) {
-    const today = new Date();
-    state.activeMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    state.activeMonthKey = "2026-04";
   }
 
   const params = new URLSearchParams({
@@ -391,54 +522,69 @@ async function loadRecords() {
   }
 
   state.records = data.records || [];
+  state.privateRecords = data.private_records || [];
   state.months = data.months || [];
   state.summary = data.summary || null;
-  if (data.active_month?.month_key) {
-    state.activeMonthKey = data.active_month.month_key;
-  }
+  if (data.active_month?.month_key) state.activeMonthKey = data.active_month.month_key;
 
   renderMonthTabs();
   renderSummary();
   renderTable();
+  renderPrivateTable();
   resetForm();
 }
 
 async function saveRecord(event) {
   event.preventDefault();
-
-  const payload = currentPayload();
   const recordId = elements.recordId.value;
-  const method = recordId ? "PUT" : "POST";
-  const url = recordId ? `/api/records/${recordId}` : "/api/records";
-
-  const response = await fetch(url, {
-    method,
+  const response = await fetch(recordId ? `/api/records/${recordId}` : "/api/records", {
+    method: recordId ? "PUT" : "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(currentPayload()),
   });
-
   const data = await response.json();
   if (!response.ok) {
     alert(data.error || "Nao foi possivel salvar o registro.");
     return;
   }
+  await loadRecords();
+}
 
+async function savePrivateRecord(event) {
+  event.preventDefault();
+  const response = await fetch("/api/private-clients", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(privateFormPayload()),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel salvar o cliente particular.");
+    return;
+  }
+  resetPrivateForm();
   await loadRecords();
 }
 
 async function removeRecord(recordId) {
-  const confirmed = window.confirm("Deseja realmente excluir este registro?");
-  if (!confirmed) {
-    return;
-  }
-
+  if (!window.confirm("Deseja realmente excluir este registro?")) return;
   const response = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
   const data = await response.json();
   if (!response.ok) {
     alert(data.error || "Nao foi possivel excluir o registro.");
     return;
   }
+  await loadRecords();
+}
 
+async function removePrivateRecord(recordId) {
+  if (!window.confirm("Deseja realmente excluir este registro particular?")) return;
+  const response = await fetch(`/api/private-clients/${recordId}`, { method: "DELETE" });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel excluir o registro particular.");
+    return;
+  }
   await loadRecords();
 }
 
@@ -446,9 +592,8 @@ function setupSorting() {
   document.querySelectorAll("th[data-sort]").forEach((header) => {
     header.addEventListener("click", async () => {
       const nextSort = header.dataset.sort;
-      if (state.sortBy === nextSort) {
-        state.sortOrder = state.sortOrder === "asc" ? "desc" : "asc";
-      } else {
+      if (state.sortBy === nextSort) state.sortOrder = state.sortOrder === "asc" ? "desc" : "asc";
+      else {
         state.sortBy = nextSort;
         state.sortOrder = "asc";
       }
@@ -458,17 +603,18 @@ function setupSorting() {
 }
 
 function downloadExport(type) {
-  if (!state.activeMonthKey) {
-    return;
-  }
+  if (!state.activeMonthKey) return;
   window.open(`/api/export/${state.activeMonthKey}.${type}`, "_blank");
 }
 
 function setupEvents() {
   elements.form.addEventListener("submit", saveRecord);
+  elements.privateForm.addEventListener("submit", savePrivateRecord);
   elements.cancelEditButton.addEventListener("click", resetForm);
+  elements.clearPrivateFormButton.addEventListener("click", resetPrivateForm);
   elements.refreshButton.addEventListener("click", loadRecords);
   elements.newRecordButton.addEventListener("click", resetForm);
+  elements.newPrivateRecordButton.addEventListener("click", resetPrivateForm);
   elements.searchInput.addEventListener("input", loadRecords);
   elements.exportXlsxButton.addEventListener("click", () => downloadExport("xlsx"));
   elements.exportPdfButton.addEventListener("click", () => downloadExport("pdf"));
@@ -486,6 +632,7 @@ function setupEvents() {
   ].forEach((input) => input.addEventListener("input", updateCalculatedTotal));
 }
 
+buildPrivateForm();
 setupSorting();
 setupEvents();
 resetForm();

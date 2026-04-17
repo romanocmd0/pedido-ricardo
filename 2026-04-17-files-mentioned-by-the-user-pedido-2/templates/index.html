@@ -11,20 +11,16 @@
       <section class="hero">
         <div>
           <p class="eyebrow">Relatorio Mensal</p>
-          <h1>Controle mensal com resumo, exportacao e edicao rapida</h1>
-          <p class="hero-copy">
-            Trabalhe mes a mes, acompanhe os totais automaticos e edite os registros direto na
-            tabela sem interromper o fluxo diario.
-          </p>
+          <h1 id="active-month-title">-</h1>
         </div>
         <div class="hero-card">
           <div>
-            <span class="hero-label">Mes ativo</span>
-            <strong id="active-month-title">-</strong>
-          </div>
-          <div>
             <span class="hero-label">Registros no mes</span>
             <strong id="record-count">0</strong>
+          </div>
+          <div>
+            <span class="hero-label">Particulares</span>
+            <strong id="private-record-count">0</strong>
           </div>
         </div>
       </section>
@@ -62,7 +58,6 @@
         <article class="panel stat-card">
           <span class="section-tag">Total do mes</span>
           <strong id="summary-total-value">R$ 0,00</strong>
-          <p>Soma automatica de todos os registros do mes selecionado.</p>
         </article>
         <article class="panel stat-card">
           <span class="section-tag">Transferencias</span>
@@ -86,11 +81,38 @@
         </article>
       </section>
 
+      <section class="panel totals-breakdown-panel">
+        <div class="section-header compact-header">
+          <div>
+            <p class="section-tag">Totais detalhados</p>
+            <h2>Financeiro do mes</h2>
+          </div>
+        </div>
+        <div class="totals-breakdown">
+          <div class="breakdown-card">
+            <span>Total de Transferencia</span>
+            <strong id="summary-transferencia-total-value">R$ 0,00</strong>
+          </div>
+          <div class="breakdown-card">
+            <span>Total de Transferencia de Combo</span>
+            <strong id="summary-combo-transferencia-total-value">R$ 0,00</strong>
+          </div>
+          <div class="breakdown-card">
+            <span>Total de Cautelar</span>
+            <strong id="summary-cautelar-total-value">R$ 0,00</strong>
+          </div>
+          <div class="breakdown-card">
+            <span>Total de Pesquisa</span>
+            <strong id="summary-pesquisa-total-value">R$ 0,00</strong>
+          </div>
+        </div>
+      </section>
+
       <section class="grid">
         <section class="panel">
           <div class="section-header">
             <div>
-              <p class="section-tag">Base do mes</p>
+              <p class="section-tag">Base principal</p>
               <h2>Tabela de registros</h2>
             </div>
             <button id="new-record-button" class="primary-button" type="button">Novo registro</button>
@@ -190,6 +212,49 @@
             </div>
           </form>
         </aside>
+      </section>
+
+      <section class="panel private-panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Tabela separada</p>
+            <h2>Clientes Particulares</h2>
+          </div>
+          <button id="new-private-record-button" class="primary-button" type="button">Novo particular</button>
+        </div>
+
+        <form id="private-record-form" class="private-form">
+          <div class="private-grid" id="private-form-grid"></div>
+          <div class="form-actions">
+            <button class="primary-button" type="submit">Adicionar</button>
+            <button id="clear-private-form-button" class="secondary-button" type="button">Limpar</button>
+          </div>
+        </form>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Campo 1</th>
+                <th>Campo 2</th>
+                <th>Campo 3</th>
+                <th>Campo 4</th>
+                <th>Campo 5</th>
+                <th>Campo 6</th>
+                <th>Campo 7</th>
+                <th>Campo 8</th>
+                <th>Campo 9</th>
+                <th>Campo 10</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="private-records-body">
+              <tr>
+                <td colspan="11" class="empty-state">Carregando clientes particulares...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
 

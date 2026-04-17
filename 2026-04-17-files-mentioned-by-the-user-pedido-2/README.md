@@ -1,27 +1,19 @@
 # Relatorio Mensal
 
-Sistema web em Flask para controle mensal de pedidos, com abas por mes, calculos automaticos, edicao inline e exportacao profissional.
+Sistema web em Flask para controle mensal de pedidos com:
 
-## Recursos principais
-
-- navegacao por meses com criacao automatica de meses futuros;
-- cadastro diario por mes;
-- CRUD completo;
-- edicao inline na tabela;
-- novo campo `Transf. de Combo`;
-- resumo mensal com totais e percentuais;
-- exportacao do mes atual em Excel e PDF;
-- persistencia em SQLite.
+- abas por mes no intervalo de Abril de 2026 ate Dezembro de 2030;
+- tabela principal com calculos automaticos;
+- tabela separada de `Clientes Particulares`;
+- edicao inline;
+- exportacao em Excel e PDF;
+- tema azul escuro com destaque dourado.
 
 ## Estrutura do banco
 
 Tabela `months`
 
-- `month_key`: chave `YYYY-MM`
-- `year_number`: ano do mes
-- `month_number`: numero do mes
-- `month_label`: rotulo em caixa alta
-- `month_title`: titulo amigavel
+- calendario fixo de `2026-04` ate `2030-12`
 
 Tabela `records`
 
@@ -36,21 +28,24 @@ Tabela `records`
 - `unit_pesquisa`
 - `total_value`
 
-## Exportacao
+Tabela `private_clients`
 
-Rotas disponiveis:
+- `month_key`
+- `field_1` ate `field_10`
+
+## Regras aplicadas
+
+- registros anteriores a Abril de 2026 sao removidos;
+- meses apos Dezembro de 2030 nao sao exibidos;
+- os dados de `Clientes Particulares` nao se misturam com a tabela principal;
+- os totais detalhados do mes consideram apenas o mes selecionado.
+
+## Exportacao
 
 - `/api/export/<month_key>.xlsx`
 - `/api/export/<month_key>.pdf`
 
-Os arquivos exportam:
-
-- todos os registros do mes atual;
-- valor total;
-- totais por tipo;
-- percentuais mensais.
-
-## Como rodar localmente
+## Execucao local
 
 ```powershell
 python -m venv .venv
@@ -58,16 +53,3 @@ python -m venv .venv
 pip install -r requirements.txt
 python app.py
 ```
-
-Abra:
-
-```text
-http://127.0.0.1:5000
-```
-
-## Dependencias principais
-
-- Flask
-- gunicorn
-- openpyxl
-- reportlab
