@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Comparacao de Meses</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
     <main class="layout">
       <nav class="top-nav">
         <a class="nav-button" href="/">Relatorio Mensal</a>
         <a class="nav-button is-active" href="/comparison">Comparacao de Meses</a>
+        <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
       </nav>
 
       <section class="hero">
@@ -48,7 +50,8 @@
               <h2>Distribuicao do mes</h2>
             </div>
           </div>
-          <div id="pie-chart" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <div id="pie-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <canvas id="pie-chart-canvas" class="chart-canvas hidden"></canvas>
         </article>
 
         <article class="panel chart-panel">
@@ -58,8 +61,67 @@
               <h2>Evolucao dentro do mes</h2>
             </div>
           </div>
-          <div id="line-chart" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <div id="line-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <canvas id="line-chart-canvas" class="chart-canvas hidden"></canvas>
         </article>
+      </section>
+
+      <section class="panel comparison-tools-panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Analise por cliente</p>
+            <h2>Historico individual</h2>
+          </div>
+        </div>
+        <div class="filters comparison-filters">
+          <label class="field compact search-field">
+            <span>Cliente</span>
+            <select id="client-select"></select>
+          </label>
+        </div>
+        <div class="comparison-grid">
+          <article class="panel chart-panel inner-panel">
+            <div class="section-header">
+              <div>
+                <p class="section-tag">Cliente</p>
+                <h2>Vistorias por mes</h2>
+              </div>
+            </div>
+            <div id="client-visits-empty" class="chart-surface empty-chart">Selecione um cliente para visualizar.</div>
+            <canvas id="client-visits-canvas" class="chart-canvas hidden"></canvas>
+          </article>
+          <article class="panel chart-panel inner-panel">
+            <div class="section-header">
+              <div>
+                <p class="section-tag">Cliente</p>
+                <h2>Valores por mes</h2>
+              </div>
+            </div>
+            <div id="client-values-empty" class="chart-surface empty-chart">Selecione um cliente para visualizar.</div>
+            <canvas id="client-values-canvas" class="chart-canvas hidden"></canvas>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel comparison-tools-panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Comparacao objetiva</p>
+            <h2>Dois meses especificos</h2>
+          </div>
+        </div>
+        <div class="filters comparison-filters">
+          <label class="field compact">
+            <span>Primeiro mes</span>
+            <select id="compare-first-month"></select>
+          </label>
+          <label class="field compact">
+            <span>Segundo mes</span>
+            <select id="compare-second-month"></select>
+          </label>
+          <button id="compare-months-button" class="primary-button" type="button">Comparar meses</button>
+        </div>
+        <div id="month-compare-results" class="month-compare-grid"></div>
       </section>
 
       <section class="panel">

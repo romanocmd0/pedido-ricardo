@@ -449,6 +449,18 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     ]
 
 
+def get_all_clients(connection: sqlite3.Connection) -> list[str]:
+    rows = connection.execute(
+        """
+        SELECT DISTINCT partner_name
+        FROM records
+        WHERE TRIM(partner_name) <> ''
+        ORDER BY partner_name
+        """
+    ).fetchall()
+    return [row["partner_name"] for row in rows]
+
+
 def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
     summary = summarize_month(connection, month_key)
     month_title = get_month_title(connection, month_key)
@@ -502,6 +514,160 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
         "has_data": True,
         "pie": pie_data,
         "line": line_data,
+    }
+
+
+def get_client_history(connection: sqlite3.Connection, partner_name: str) -> dict[str, Any]:
+    rows = connection.execute(
+        """
+        SELECT
+            m.month_key,
+            m.month_title,
+            COALESCE(SUM(r.transferencia_qty + r.combo_transferencia_qty + r.cautelar_qty + r.pesquisa_qty), 0) AS vistoria_count,
+            COALESCE(SUM(r.total_value), 0) AS total_value
+        FROM months m
+        JOIN records r ON r.month_key = m.month_key
+        WHERE r.partner_name = ?
+        GROUP BY m.month_key, m.month_title, m.year_number, m.month_number
+        ORDER BY m.year_number, m.month_number
+        """,
+        (partner_name,),
+    ).fetchall()
+
+    return {
+        "partner_name": partner_name,
+        "has_data": len(rows) > 0,
+        "months": [
+            {
+                "month_key": row["month_key"],
+                "month_title": row["month_title"],
+                "vistoria_count": row["vistoria_count"],
+                "total_value": row["total_value"],
+            }
+            for row in rows
+        ],
+    }
+
+
+def build_month_metrics(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
+    summary = summarize_month(connection, month_key)
+    return {
+        "month_key": month_key,
+        "month_title": get_month_title(connection, month_key),
+        "total_value": summary["total_value"],
+        "transferencia_total_value": summary["transferencia_total_value"],
+        "combo_transferencia_total_value": summary["combo_transferencia_total_value"],
+        "cautelar_total_value": summary["cautelar_total_value"],
+        "pesquisa_total_value": summary["pesquisa_total_value"],
+    }
+
+
+def calculate_delta(current_value: float, previous_value: float) -> dict[str, Any]:
+    difference = round(current_value - previous_value, 2)
+    if previous_value == 0:
+        if current_value == 0:
+            pct_change: float | None = 0.0
+        else:
+            pct_change = None
+    else:
+        pct_change = round((difference / previous_value) * 100, 2)
+    return {"difference": difference, "pct_change": pct_change}
+
+
+def compare_two_months(connection: sqlite3.Connection, month_key_a: str, month_key_b: str) -> dict[str, Any]:
+    first = build_month_metrics(connection, month_key_a)
+    second = build_month_metrics(connection, month_key_b)
+    keys = [
+        "total_value",
+        "transferencia_total_value",
+        "combo_transferencia_total_value",
+        "cautelar_total_value",
+        "pesquisa_total_value",
+    ]
+    deltas = {key: calculate_delta(second[key], first[key]) for key in keys}
+    return {"first": first, "second": second, "delta": deltas}
+
+
+def get_client_ranking(connection: sqlite3.Connection, month_key: str | None) -> list[dict[str, Any]]:
+    params: list[Any] = []
+    condition = ""
+    if month_key:
+        condition = "WHERE month_key = ?"
+        params.append(month_key)
+
+    rows = connection.execute(
+        f"""
+        SELECT
+            partner_name,
+            COALESCE(SUM(total_value), 0) AS total_value,
+            COALESCE(SUM(transferencia_qty + combo_transferencia_qty + cautelar_qty + pesquisa_qty), 0) AS vistoria_count
+        FROM records
+        {condition}
+        GROUP BY partner_name
+        HAVING TRIM(partner_name) <> ''
+        ORDER BY total_value DESC, vistoria_count DESC, partner_name ASC
+        """,
+        params,
+    ).fetchall()
+
+    return [
+        {
+            "partner_name": row["partner_name"],
+            "total_value": row["total_value"],
+            "vistoria_count": row["vistoria_count"],
+        }
+        for row in rows
+    ]
+
+
+def get_client_comparison_payload(connection: sqlite3.Connection, month_key: str | None) -> dict[str, Any]:
+    ranking = get_client_ranking(connection, month_key)
+    top_clients = ranking[:8]
+
+    if month_key:
+        months_filter = "WHERE m.month_key = ?"
+        params: list[Any] = [month_key]
+    else:
+        months_filter = """
+        WHERE EXISTS (
+            SELECT 1
+            FROM records r
+            WHERE r.month_key = m.month_key
+        )
+        """
+        params = []
+
+    months = connection.execute(
+        f"""
+        SELECT m.month_key, m.month_title
+        FROM months m
+        {months_filter}
+        ORDER BY m.year_number, m.month_number
+        """,
+        params,
+    ).fetchall()
+
+    top_names = [item["partner_name"] for item in top_clients[:5]]
+    evolution: list[dict[str, Any]] = []
+    for month in months:
+        row = {"month_key": month["month_key"], "month_title": month["month_title"]}
+        for name in top_names:
+            total = connection.execute(
+                """
+                SELECT COALESCE(SUM(total_value), 0) AS total_value
+                FROM records
+                WHERE month_key = ? AND partner_name = ?
+                """,
+                (month["month_key"], name),
+            ).fetchone()["total_value"]
+            row[name] = total
+        evolution.append(row)
+
+    return {
+        "scope": month_key or "all",
+        "ranking": ranking,
+        "top_names": top_names,
+        "evolution": evolution,
     }
 
 
@@ -839,6 +1005,11 @@ def comparison_page() -> str:
     return render_template("comparison.html")
 
 
+@app.route("/client-comparison")
+def client_comparison_page() -> str:
+    return render_template("client_comparison.html")
+
+
 @app.get("/healthz")
 def healthcheck():
     return jsonify({"status": "ok"})
@@ -881,7 +1052,8 @@ def comparison_data():
     with get_db() as connection:
         ensure_allowed_months(connection)
         months = get_comparison_data(connection)
-    return jsonify({"months": months})
+        clients = get_all_clients(connection)
+    return jsonify({"months": months, "clients": clients})
 
 
 @app.get("/api/comparison/<string:month_key>")
@@ -898,6 +1070,53 @@ def comparison_month_detail(month_key: str):
         ensure_month(connection, year_number, month_number)
         payload = get_month_chart_data(connection, month_key)
     return jsonify(payload)
+
+
+@app.get("/api/client-history/<path:partner_name>")
+def client_history(partner_name: str):
+    if not partner_name.strip():
+        return jsonify({"error": "Cliente invalido."}), 400
+    with get_db() as connection:
+        payload = get_client_history(connection, partner_name)
+    return jsonify(payload)
+
+
+@app.get("/api/month-compare")
+def month_compare():
+    first = clamp_month_key((request.args.get("first") or "").strip())
+    second = clamp_month_key((request.args.get("second") or "").strip())
+    if not first or not second:
+        return jsonify({"error": "Selecione dois meses para comparar."}), 400
+
+    try:
+        parse_month_key(first)
+        parse_month_key(second)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        ensure_allowed_months(connection)
+        payload = compare_two_months(connection, first, second)
+    return jsonify(payload)
+
+
+@app.get("/api/client-comparison")
+def client_comparison():
+    month_key = (request.args.get("month_key") or "").strip()
+    if month_key:
+        month_key = clamp_month_key(month_key)
+        try:
+            parse_month_key(month_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    else:
+        month_key = None
+
+    with get_db() as connection:
+        ensure_allowed_months(connection)
+        payload = get_client_comparison_payload(connection, month_key)
+        months = get_comparison_data(connection)
+    return jsonify({"months": months, **payload})
 
 
 @app.get("/api/export/<string:month_key>.xlsx")

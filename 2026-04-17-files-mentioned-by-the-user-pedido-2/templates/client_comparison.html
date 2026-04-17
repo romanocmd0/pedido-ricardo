@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comparacao entre Clientes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <main class="layout">
+      <nav class="top-nav">
+        <a class="nav-button" href="/">Relatorio Mensal</a>
+        <a class="nav-button" href="/comparison">Comparacao de Meses</a>
+        <a class="nav-button is-active" href="/client-comparison">Comparacao entre Clientes</a>
+      </nav>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Relatorio Mensal</p>
+          <h1>Comparacao entre Clientes</h1>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="hero-label">Escopo</span>
+            <strong id="client-scope-label">Total geral</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel comparison-tools-panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Filtros</p>
+            <h2>Ranking e evolucao</h2>
+          </div>
+        </div>
+        <div class="filters comparison-filters">
+          <label class="field compact">
+            <span>Modo</span>
+            <select id="client-view-mode">
+              <option value="all">Total geral</option>
+              <option value="month">Por mes</option>
+            </select>
+          </label>
+          <label class="field compact">
+            <span>Mes especifico</span>
+            <select id="client-month-select" disabled></select>
+          </label>
+          <button id="apply-client-filter-button" class="primary-button" type="button">Aplicar filtro</button>
+        </div>
+      </section>
+
+      <section class="comparison-grid">
+        <article class="panel chart-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Ranking</p>
+              <h2>Valor total por cliente</h2>
+            </div>
+          </div>
+          <div id="client-bar-empty" class="chart-surface empty-chart">Carregando dados...</div>
+          <canvas id="client-bar-canvas" class="chart-canvas hidden"></canvas>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Evolucao</p>
+              <h2>Principais clientes ao longo do tempo</h2>
+            </div>
+          </div>
+          <div id="client-line-empty" class="chart-surface empty-chart">Carregando dados...</div>
+          <canvas id="client-line-canvas" class="chart-canvas hidden"></canvas>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Tabela</p>
+            <h2>Ranking de clientes</h2>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Valor total</th>
+                <th>Quantidade de vistorias</th>
+              </tr>
+            </thead>
+            <tbody id="client-ranking-body">
+              <tr>
+                <td colspan="3" class="empty-state">Carregando ranking...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='client_comparison.js') }}" defer></script>
+  </body>
+</html>

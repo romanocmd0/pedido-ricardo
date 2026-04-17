@@ -1,10 +1,91 @@
 const comparisonState = {
   months: [],
+  clients: [],
   selectedMonthKey: "",
+  pieChart: null,
+  lineChart: null,
+  clientVisitsChart: null,
+  clientValuesChart: null,
 };
 
 function formatCurrency(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
+}
+
+function formatPercentDelta(value) {
+  if (value === null || value === undefined) return "Novo";
+  return `${value > 0 ? "+" : ""}${value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
+function setCanvasState(canvasId, emptyId, hasData, message = "Sem dados") {
+  const canvas = document.querySelector(canvasId);
+  const empty = document.querySelector(emptyId);
+  if (hasData) {
+    canvas.classList.remove("hidden");
+    empty.classList.add("hidden");
+  } else {
+    canvas.classList.add("hidden");
+    empty.classList.remove("hidden");
+    empty.textContent = message;
+  }
+}
+
+function buildLineChart(target, labels, datasets) {
+  if (target.chart) target.chart.destroy();
+  return new Chart(target.context, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#f0d777" } } },
+      scales: {
+        x: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+        y: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+      },
+    },
+  });
+}
+
+function buildBarChart(target, labels, datasets) {
+  if (target.chart) target.chart.destroy();
+  return new Chart(target.context, {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#f0d777" } } },
+      scales: {
+        x: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+        y: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+      },
+    },
+  });
+}
+
+function buildPieChart(target, labels, values) {
+  if (target.chart) target.chart.destroy();
+  return new Chart(target.context, {
+    type: "pie",
+    data: {
+      labels,
+      datasets: [
+        {
+          data: values,
+          backgroundColor: ["#d4af37", "#8cc7ff", "#4fd3a7", "#f59f70"],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#f0d777" } } },
+    },
+  });
 }
 
 function renderComparisonTable(months) {
@@ -39,6 +120,37 @@ function renderComparisonTable(months) {
   });
 }
 
+function populateMonthCompareSelectors(months) {
+  const first = document.querySelector("#compare-first-month");
+  const second = document.querySelector("#compare-second-month");
+  first.innerHTML = "";
+  second.innerHTML = "";
+  months.forEach((month, index) => {
+    const firstOption = document.createElement("option");
+    firstOption.value = month.month_key;
+    firstOption.textContent = month.month_title;
+    if (index === 0) firstOption.selected = true;
+    first.appendChild(firstOption);
+
+    const secondOption = document.createElement("option");
+    secondOption.value = month.month_key;
+    secondOption.textContent = month.month_title;
+    if (index === months.length - 1) secondOption.selected = true;
+    second.appendChild(secondOption);
+  });
+}
+
+function populateClientSelector(clients) {
+  const select = document.querySelector("#client-select");
+  select.innerHTML = '<option value="">Selecione um cliente</option>';
+  clients.forEach((client) => {
+    const option = document.createElement("option");
+    option.value = client;
+    option.textContent = client;
+    select.appendChild(option);
+  });
+}
+
 function renderMonthTabs(months) {
   const container = document.querySelector("#comparison-month-tabs");
   container.innerHTML = "";
@@ -52,10 +164,7 @@ function renderMonthTabs(months) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `month-tab ${comparisonState.selectedMonthKey === month.month_key ? "is-active" : ""}`;
-    button.innerHTML = `
-      <span>${month.month_title}</span>
-      <small>${month.record_count} registro(s)</small>
-    `;
+    button.innerHTML = `<span>${month.month_title}</span><small>${month.record_count} registro(s)</small>`;
     button.addEventListener("click", async () => {
       comparisonState.selectedMonthKey = month.month_key;
       renderMonthTabs(comparisonState.months);
@@ -64,69 +173,6 @@ function renderMonthTabs(months) {
     });
     container.appendChild(button);
   });
-}
-
-function createBarMarkup(items, colorClass) {
-  const maxValue = Math.max(...items.map((item) => item.value), 1);
-  return items
-    .map(
-      (item) => `
-        <div class="bar-group">
-          <div class="bar-label">${item.label}</div>
-          <div class="bar-track">
-            <div class="bar-fill ${colorClass}" style="width: ${(item.value / maxValue) * 100}%"></div>
-          </div>
-          <div class="bar-value">${formatCurrency(item.value)}</div>
-        </div>
-      `,
-    )
-    .join("");
-}
-
-function renderPieChart(monthTitle, pieData) {
-  const container = document.querySelector("#pie-chart");
-  const total = pieData.reduce((sum, item) => sum + item.value, 0);
-  if (!total) {
-    container.className = "chart-surface empty-chart";
-    container.textContent = "Sem dados";
-    return;
-  }
-
-  container.className = "chart-surface";
-  const segments = pieData
-    .map((item, index) => {
-      const colors = ["#d4af37", "#8cc7ff", "#4fd3a7", "#f59f70"];
-      const percentage = total === 0 ? 0 : ((item.value / total) * 100).toFixed(1);
-      return `
-        <div class="pie-row">
-          <span class="pie-dot" style="background:${colors[index % colors.length]}"></span>
-          <span class="pie-label">${item.label}</span>
-          <strong class="pie-value">${percentage}%</strong>
-          <span class="pie-amount">${formatCurrency(item.value)}</span>
-        </div>
-      `;
-    })
-    .join("");
-
-  container.innerHTML = `
-    <div class="chart-title">${monthTitle}</div>
-    ${segments}
-  `;
-}
-
-function renderLineChart(monthTitle, lineData) {
-  const container = document.querySelector("#line-chart");
-  if (!lineData.length) {
-    container.className = "chart-surface empty-chart";
-    container.textContent = "Sem dados";
-    return;
-  }
-
-  container.className = "chart-surface";
-  container.innerHTML = `
-    <div class="chart-title">${monthTitle}</div>
-    ${createBarMarkup(lineData, "blue-bar")}
-  `;
 }
 
 async function loadMonthCharts(monthKey) {
@@ -139,15 +185,154 @@ async function loadMonthCharts(monthKey) {
 
   document.querySelector("#selected-month-title").textContent = data.month_title || "Nenhum";
   if (!data.has_data) {
-    document.querySelector("#pie-chart").className = "chart-surface empty-chart";
-    document.querySelector("#line-chart").className = "chart-surface empty-chart";
-    document.querySelector("#pie-chart").textContent = "Sem dados";
-    document.querySelector("#line-chart").textContent = "Sem dados";
+    if (comparisonState.pieChart) {
+      comparisonState.pieChart.destroy();
+      comparisonState.pieChart = null;
+    }
+    if (comparisonState.lineChart) {
+      comparisonState.lineChart.destroy();
+      comparisonState.lineChart = null;
+    }
+    setCanvasState("#pie-chart-canvas", "#pie-chart-empty", false, "Sem dados");
+    setCanvasState("#line-chart-canvas", "#line-chart-empty", false, "Sem dados");
     return;
   }
 
-  renderPieChart(data.month_title, data.pie || []);
-  renderLineChart(data.month_title, data.line || []);
+  setCanvasState("#pie-chart-canvas", "#pie-chart-empty", true);
+  setCanvasState("#line-chart-canvas", "#line-chart-empty", true);
+
+  comparisonState.pieChart = buildPieChart(
+    {
+      context: document.querySelector("#pie-chart-canvas"),
+      chart: comparisonState.pieChart,
+    },
+    data.pie.map((item) => item.label),
+    data.pie.map((item) => item.value),
+  );
+
+  comparisonState.lineChart = buildLineChart(
+    {
+      context: document.querySelector("#line-chart-canvas"),
+      chart: comparisonState.lineChart,
+    },
+    data.line.map((item) => item.label),
+    [
+      {
+        label: "Evolucao acumulada",
+        data: data.line.map((item) => item.value),
+        borderColor: "#8cc7ff",
+        backgroundColor: "rgba(140,199,255,0.18)",
+        fill: true,
+        tension: 0.25,
+      },
+    ],
+  );
+}
+
+async function loadClientHistory(partnerName) {
+  if (!partnerName) {
+    if (comparisonState.clientVisitsChart) {
+      comparisonState.clientVisitsChart.destroy();
+      comparisonState.clientVisitsChart = null;
+    }
+    if (comparisonState.clientValuesChart) {
+      comparisonState.clientValuesChart.destroy();
+      comparisonState.clientValuesChart = null;
+    }
+    setCanvasState("#client-visits-canvas", "#client-visits-empty", false, "Selecione um cliente para visualizar.");
+    setCanvasState("#client-values-canvas", "#client-values-empty", false, "Selecione um cliente para visualizar.");
+    return;
+  }
+
+  const response = await fetch(`/api/client-history/${encodeURIComponent(partnerName)}`);
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel carregar o historico do cliente.");
+    return;
+  }
+
+  if (!data.has_data) {
+    if (comparisonState.clientVisitsChart) {
+      comparisonState.clientVisitsChart.destroy();
+      comparisonState.clientVisitsChart = null;
+    }
+    if (comparisonState.clientValuesChart) {
+      comparisonState.clientValuesChart.destroy();
+      comparisonState.clientValuesChart = null;
+    }
+    setCanvasState("#client-visits-canvas", "#client-visits-empty", false, "Sem dados");
+    setCanvasState("#client-values-canvas", "#client-values-empty", false, "Sem dados");
+    return;
+  }
+
+  setCanvasState("#client-visits-canvas", "#client-visits-empty", true);
+  setCanvasState("#client-values-canvas", "#client-values-empty", true);
+
+  const labels = data.months.map((item) => item.month_title);
+  comparisonState.clientVisitsChart = buildLineChart(
+    { context: document.querySelector("#client-visits-canvas"), chart: comparisonState.clientVisitsChart },
+    labels,
+    [
+      {
+        label: "Quantidade de vistorias",
+        data: data.months.map((item) => item.vistoria_count),
+        borderColor: "#d4af37",
+        backgroundColor: "rgba(212,175,55,0.18)",
+        fill: true,
+        tension: 0.25,
+      },
+    ],
+  );
+
+  comparisonState.clientValuesChart = buildLineChart(
+    { context: document.querySelector("#client-values-canvas"), chart: comparisonState.clientValuesChart },
+    labels,
+    [
+      {
+        label: "Valores por mes",
+        data: data.months.map((item) => item.total_value),
+        borderColor: "#4fd3a7",
+        backgroundColor: "rgba(79,211,167,0.18)",
+        fill: true,
+        tension: 0.25,
+      },
+    ],
+  );
+}
+
+async function compareSelectedMonths() {
+  const first = document.querySelector("#compare-first-month").value;
+  const second = document.querySelector("#compare-second-month").value;
+  if (!first || !second) return;
+
+  const response = await fetch(`/api/month-compare?first=${encodeURIComponent(first)}&second=${encodeURIComponent(second)}`);
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel comparar os meses.");
+    return;
+  }
+
+  const metrics = [
+    ["Total geral", "total_value"],
+    ["Transferencia", "transferencia_total_value"],
+    ["Transf. de Combo", "combo_transferencia_total_value"],
+    ["Cautelar", "cautelar_total_value"],
+    ["Pesquisa", "pesquisa_total_value"],
+  ];
+  const container = document.querySelector("#month-compare-results");
+  container.innerHTML = metrics
+    .map(([label, key]) => {
+      const delta = data.delta[key];
+      return `
+        <article class="breakdown-card">
+          <span>${label}</span>
+          <strong>${formatCurrency(data.second[key])}</strong>
+          <p>${data.second.month_title} vs ${data.first.month_title}</p>
+          <p>Diferenca: ${formatCurrency(delta.difference)} | ${formatPercentDelta(delta.pct_change)}</p>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 async function loadComparison() {
@@ -159,8 +344,14 @@ async function loadComparison() {
   }
 
   comparisonState.months = data.months || [];
+  comparisonState.clients = data.clients || [];
   renderMonthTabs(comparisonState.months);
   renderComparisonTable(comparisonState.months);
+  populateMonthCompareSelectors(comparisonState.months);
+  populateClientSelector(comparisonState.clients);
 }
+
+document.querySelector("#client-select").addEventListener("change", (event) => loadClientHistory(event.target.value));
+document.querySelector("#compare-months-button").addEventListener("click", compareSelectedMonths);
 
 loadComparison();
