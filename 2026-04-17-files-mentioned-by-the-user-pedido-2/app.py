@@ -500,8 +500,6 @@ def index() -> str:
 
 @app.get("/healthz")
 def healthcheck():
-    with get_db() as connection:
-        connection.execute("SELECT 1")
     return jsonify({"status": "ok"})
 
 
