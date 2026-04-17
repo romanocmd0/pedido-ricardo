@@ -19,8 +19,8 @@
             <strong id="record-count">0</strong>
           </div>
           <div>
-            <span class="hero-label">Particulares</span>
-            <strong id="private-record-count">0</strong>
+            <span class="hero-label">Analise</span>
+            <a class="hero-link" href="/comparison">Comparacao de Meses</a>
           </div>
         </div>
       </section>
@@ -49,6 +49,7 @@
           <div class="export-actions">
             <button id="export-xlsx-button" class="secondary-button" type="button">Exportar Excel</button>
             <button id="export-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
+            <a class="secondary-button link-button" href="/comparison">Comparacao de Meses</a>
           </div>
           <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
         </div>
@@ -212,49 +213,6 @@
             </div>
           </form>
         </aside>
-      </section>
-
-      <section class="panel private-panel">
-        <div class="section-header">
-          <div>
-            <p class="section-tag">Tabela separada</p>
-            <h2>Clientes Particulares</h2>
-          </div>
-          <button id="new-private-record-button" class="primary-button" type="button">Novo particular</button>
-        </div>
-
-        <form id="private-record-form" class="private-form">
-          <div class="private-grid" id="private-form-grid"></div>
-          <div class="form-actions">
-            <button class="primary-button" type="submit">Adicionar</button>
-            <button id="clear-private-form-button" class="secondary-button" type="button">Limpar</button>
-          </div>
-        </form>
-
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Campo 1</th>
-                <th>Campo 2</th>
-                <th>Campo 3</th>
-                <th>Campo 4</th>
-                <th>Campo 5</th>
-                <th>Campo 6</th>
-                <th>Campo 7</th>
-                <th>Campo 8</th>
-                <th>Campo 9</th>
-                <th>Campo 10</th>
-                <th>Acoes</th>
-              </tr>
-            </thead>
-            <tbody id="private-records-body">
-              <tr>
-                <td colspan="11" class="empty-state">Carregando clientes particulares...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
     </main>
 

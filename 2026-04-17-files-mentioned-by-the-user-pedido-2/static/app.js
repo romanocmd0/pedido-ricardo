@@ -1,15 +1,11 @@
-const PRIVATE_FIELDS = Array.from({ length: 10 }, (_, index) => `field_${index + 1}`);
-
 const state = {
   records: [],
-  privateRecords: [],
   months: [],
   activeMonthKey: "",
   sortBy: "partner_name",
   sortOrder: "asc",
   summary: null,
   editingRowId: null,
-  editingPrivateRowId: null,
 };
 
 const elements = {
@@ -19,14 +15,8 @@ const elements = {
   exportXlsxButton: document.querySelector("#export-xlsx-button"),
   exportPdfButton: document.querySelector("#export-pdf-button"),
   newRecordButton: document.querySelector("#new-record-button"),
-  newPrivateRecordButton: document.querySelector("#new-private-record-button"),
   recordsBody: document.querySelector("#records-body"),
-  privateRecordsBody: document.querySelector("#private-records-body"),
-  privateForm: document.querySelector("#private-record-form"),
-  privateFormGrid: document.querySelector("#private-form-grid"),
-  clearPrivateFormButton: document.querySelector("#clear-private-form-button"),
   recordCount: document.querySelector("#record-count"),
-  privateRecordCount: document.querySelector("#private-record-count"),
   periodCount: document.querySelector("#period-count"),
   activeMonthTitle: document.querySelector("#active-month-title"),
   headerTotalValue: document.querySelector("#header-total-value"),
@@ -95,14 +85,6 @@ function currentPayload() {
   };
 }
 
-function privateFormPayload() {
-  const payload = { month_key: state.activeMonthKey };
-  PRIVATE_FIELDS.forEach((fieldName) => {
-    payload[fieldName] = document.querySelector(`#private-${fieldName}`)?.value?.trim() || "";
-  });
-  return payload;
-}
-
 function recordPayloadFromInputs(row) {
   return {
     month_key: state.activeMonthKey,
@@ -116,14 +98,6 @@ function recordPayloadFromInputs(row) {
     unit_cautelar: Number(row.querySelector('[data-field="unit_cautelar"]').value || 0),
     unit_pesquisa: Number(row.querySelector('[data-field="unit_pesquisa"]').value || 0),
   };
-}
-
-function privatePayloadFromInputs(row) {
-  const payload = { month_key: state.activeMonthKey };
-  PRIVATE_FIELDS.forEach((fieldName) => {
-    payload[fieldName] = row.querySelector(`[data-field="${fieldName}"]`).value.trim();
-  });
-  return payload;
 }
 
 function calculateTotal(payload) {
@@ -155,27 +129,8 @@ function resetForm() {
   elements.unitComboTransferencia.value = 0;
   elements.unitCautelar.value = 240;
   elements.unitPesquisa.value = 80;
-
-  const activeMonth = getActiveMonth();
-  elements.formMonthCaption.textContent = `Mes ativo: ${activeMonth ? activeMonth.month_title : "-"}`;
+  elements.formMonthCaption.textContent = `Mes ativo: ${getActiveMonth()?.month_title || "-"}`;
   updateCalculatedTotal();
-}
-
-function resetPrivateForm() {
-  elements.privateForm.reset();
-}
-
-function buildPrivateForm() {
-  elements.privateFormGrid.innerHTML = "";
-  PRIVATE_FIELDS.forEach((fieldName, index) => {
-    const label = document.createElement("label");
-    label.className = "field";
-    label.innerHTML = `
-      <span>Campo ${index + 1}</span>
-      <input id="private-${fieldName}" type="text" placeholder="Valor ${index + 1}" />
-    `;
-    elements.privateFormGrid.appendChild(label);
-  });
 }
 
 function renderMonthTabs() {
@@ -189,9 +144,7 @@ function renderMonthTabs() {
       if (state.activeMonthKey === month.month_key) return;
       state.activeMonthKey = month.month_key;
       state.editingRowId = null;
-      state.editingPrivateRowId = null;
       resetForm();
-      resetPrivateForm();
       await loadRecords();
     });
     elements.monthTabs.appendChild(button);
@@ -217,10 +170,8 @@ function renderSummary() {
     record_count: 0,
   };
 
-  const activeMonth = getActiveMonth();
-  elements.activeMonthTitle.textContent = activeMonth ? activeMonth.month_title : "Relatorio Mensal";
+  elements.activeMonthTitle.textContent = getActiveMonth()?.month_title || "Relatorio Mensal";
   elements.recordCount.textContent = String(summary.record_count || 0);
-  elements.privateRecordCount.textContent = String(state.privateRecords.length || 0);
   elements.headerTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTransferenciaQty.textContent = String(summary.transferencia_qty || 0);
@@ -252,18 +203,6 @@ function renderEditableCell(value, field, type = "number", step = "1") {
   `;
 }
 
-function renderPrivateReadonlyCell(value, field) {
-  return `<td class="editable-cell" data-private-start-edit="${field}">${escapeHtml(value)}</td>`;
-}
-
-function renderPrivateEditableCell(value, field) {
-  return `
-    <td class="editing-cell">
-      <input class="inline-input" data-field="${field}" type="text" value="${escapeHtml(value)}" />
-    </td>
-  `;
-}
-
 function recordPayloadFromInlineRecord(record) {
   return {
     month_key: state.activeMonthKey,
@@ -289,16 +228,6 @@ function attachInlineEditing(rowElement, record) {
   });
 }
 
-function attachPrivateInlineEditing(rowElement, record) {
-  rowElement.querySelectorAll("[data-private-start-edit]").forEach((cell) => {
-    cell.addEventListener("click", () => {
-      state.editingPrivateRowId = record.id;
-      renderPrivateTable();
-      elements.privateRecordsBody.querySelector(`tr[data-private-row-id="${record.id}"]`)?.querySelector(".inline-input")?.focus();
-    });
-  });
-}
-
 async function saveInlineRow(rowElement, recordId) {
   const response = await fetch(`/api/records/${recordId}`, {
     method: "PUT",
@@ -311,22 +240,6 @@ async function saveInlineRow(rowElement, recordId) {
     return false;
   }
   state.editingRowId = null;
-  await loadRecords();
-  return true;
-}
-
-async function saveInlinePrivateRow(rowElement, recordId) {
-  const response = await fetch(`/api/private-clients/${recordId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(privatePayloadFromInputs(rowElement)),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(data.error || "Nao foi possivel salvar a linha.");
-    return false;
-  }
-  state.editingPrivateRowId = null;
   await loadRecords();
   return true;
 }
@@ -344,9 +257,7 @@ function attachEditingEvents(rowElement, recordId) {
   };
 
   const refreshInlineTotal = () => {
-    if (totalCell) {
-      totalCell.textContent = formatCurrency(calculateTotal(recordPayloadFromInputs(rowElement)));
-    }
+    if (totalCell) totalCell.textContent = formatCurrency(calculateTotal(recordPayloadFromInputs(rowElement)));
   };
 
   inputs.forEach((input) => {
@@ -368,36 +279,6 @@ function attachEditingEvents(rowElement, recordId) {
     });
   });
   refreshInlineTotal();
-}
-
-function attachPrivateEditingEvents(rowElement, recordId) {
-  const inputs = rowElement.querySelectorAll(".inline-input");
-  let isSaving = false;
-
-  const saveIfNeeded = async () => {
-    if (isSaving) return;
-    isSaving = true;
-    await saveInlinePrivateRow(rowElement, recordId);
-    isSaving = false;
-  };
-
-  inputs.forEach((input) => {
-    input.addEventListener("keydown", async (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        await saveIfNeeded();
-      }
-      if (event.key === "Escape") {
-        state.editingPrivateRowId = null;
-        renderPrivateTable();
-      }
-    });
-    input.addEventListener("blur", () => {
-      setTimeout(async () => {
-        if (!rowElement.contains(document.activeElement)) await saveIfNeeded();
-      }, 0);
-    });
-  });
 }
 
 function renderTable() {
@@ -460,52 +341,8 @@ function renderTable() {
   });
 }
 
-function renderPrivateTable() {
-  if (!state.privateRecords.length) {
-    elements.privateRecordsBody.innerHTML = '<tr><td colspan="11" class="empty-state">Nenhum cliente particular para este mes.</td></tr>';
-    return;
-  }
-
-  elements.privateRecordsBody.innerHTML = "";
-  state.privateRecords.forEach((record) => {
-    const isEditing = state.editingPrivateRowId === record.id;
-    const row = document.createElement("tr");
-    row.dataset.privateRowId = String(record.id);
-
-    if (isEditing) {
-      row.className = "editing-row";
-      row.innerHTML = `
-        ${PRIVATE_FIELDS.map((fieldName) => renderPrivateEditableCell(record[fieldName], fieldName)).join("")}
-        <td></td>
-      `;
-    } else {
-      row.innerHTML = `
-        ${PRIVATE_FIELDS.map((fieldName) => renderPrivateReadonlyCell(record[fieldName], fieldName)).join("")}
-        <td></td>
-      `;
-    }
-
-    const actionsCell = row.querySelector("td:last-child");
-    const actionWrap = document.createElement("div");
-    actionWrap.className = "actions";
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "icon-button danger-button";
-    deleteButton.textContent = "Excluir";
-    deleteButton.addEventListener("click", () => removePrivateRecord(record.id));
-    actionWrap.append(deleteButton);
-    actionsCell.appendChild(actionWrap);
-    elements.privateRecordsBody.appendChild(row);
-
-    if (isEditing) attachPrivateEditingEvents(row, record.id);
-    else attachPrivateInlineEditing(row, record);
-  });
-}
-
 async function loadRecords() {
-  if (!state.activeMonthKey) {
-    state.activeMonthKey = "2026-04";
-  }
+  if (!state.activeMonthKey) state.activeMonthKey = "2026-04";
 
   const params = new URLSearchParams({
     search: elements.searchInput.value.trim(),
@@ -522,7 +359,6 @@ async function loadRecords() {
   }
 
   state.records = data.records || [];
-  state.privateRecords = data.private_records || [];
   state.months = data.months || [];
   state.summary = data.summary || null;
   if (data.active_month?.month_key) state.activeMonthKey = data.active_month.month_key;
@@ -530,7 +366,6 @@ async function loadRecords() {
   renderMonthTabs();
   renderSummary();
   renderTable();
-  renderPrivateTable();
   resetForm();
 }
 
@@ -550,39 +385,12 @@ async function saveRecord(event) {
   await loadRecords();
 }
 
-async function savePrivateRecord(event) {
-  event.preventDefault();
-  const response = await fetch("/api/private-clients", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(privateFormPayload()),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(data.error || "Nao foi possivel salvar o cliente particular.");
-    return;
-  }
-  resetPrivateForm();
-  await loadRecords();
-}
-
 async function removeRecord(recordId) {
   if (!window.confirm("Deseja realmente excluir este registro?")) return;
   const response = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
   const data = await response.json();
   if (!response.ok) {
     alert(data.error || "Nao foi possivel excluir o registro.");
-    return;
-  }
-  await loadRecords();
-}
-
-async function removePrivateRecord(recordId) {
-  if (!window.confirm("Deseja realmente excluir este registro particular?")) return;
-  const response = await fetch(`/api/private-clients/${recordId}`, { method: "DELETE" });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(data.error || "Nao foi possivel excluir o registro particular.");
     return;
   }
   await loadRecords();
@@ -609,12 +417,9 @@ function downloadExport(type) {
 
 function setupEvents() {
   elements.form.addEventListener("submit", saveRecord);
-  elements.privateForm.addEventListener("submit", savePrivateRecord);
   elements.cancelEditButton.addEventListener("click", resetForm);
-  elements.clearPrivateFormButton.addEventListener("click", resetPrivateForm);
   elements.refreshButton.addEventListener("click", loadRecords);
   elements.newRecordButton.addEventListener("click", resetForm);
-  elements.newPrivateRecordButton.addEventListener("click", resetPrivateForm);
   elements.searchInput.addEventListener("input", loadRecords);
   elements.exportXlsxButton.addEventListener("click", () => downloadExport("xlsx"));
   elements.exportPdfButton.addEventListener("click", () => downloadExport("pdf"));
@@ -632,7 +437,6 @@ function setupEvents() {
   ].forEach((input) => input.addEventListener("input", updateCalculatedTotal));
 }
 
-buildPrivateForm();
 setupSorting();
 setupEvents();
 resetForm();

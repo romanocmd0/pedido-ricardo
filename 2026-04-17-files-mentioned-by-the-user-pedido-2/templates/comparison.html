@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comparacao de Meses</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Relatorio Mensal</p>
+          <h1>Comparacao de Meses</h1>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="hero-label">Visao analitica</span>
+            <strong id="comparison-month-count">0</strong>
+          </div>
+          <div>
+            <a class="hero-link" href="/">Voltar para tela principal</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="comparison-grid">
+        <article class="panel chart-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Dashboard</p>
+              <h2>Evolucao dos valores</h2>
+            </div>
+          </div>
+          <div id="evolution-chart" class="chart-surface"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Comparacao</p>
+              <h2>Tipos por mes</h2>
+            </div>
+          </div>
+          <div id="types-chart" class="chart-surface"></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Tabela comparativa</p>
+            <h2>Resumo entre meses</h2>
+          </div>
+          <a class="secondary-button link-button" href="/">Voltar</a>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Mes</th>
+                <th>Total geral</th>
+                <th>Total Transferencia</th>
+                <th>Total Transf. Combo</th>
+                <th>Total Cautelar</th>
+                <th>Total Pesquisa</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-body">
+              <tr>
+                <td colspan="6" class="empty-state">Carregando comparacao...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='comparison.js') }}" defer></script>
+  </body>
+</html>
