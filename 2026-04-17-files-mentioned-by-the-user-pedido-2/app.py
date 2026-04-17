@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,20 +31,22 @@ MONTH_LABELS = {
     12: "DEZEMBRO",
 }
 
-HISTORICAL_PERIOD_ORDER = {
-    "SETEMBRO": 1,
-    "OUTUBRO": 2,
-    "NOVEMBRO": 3,
-    "DEZEMBRO": 4,
-    "JANEIRO": 5,
-    "FEVEREIRO": 6,
-    "MARCO": 7,
-    "ABRIL": 8,
+MONTH_TITLES = {
+    1: "Janeiro",
+    2: "Fevereiro",
+    3: "Marco",
+    4: "Abril",
+    5: "Maio",
+    6: "Junho",
+    7: "Julho",
+    8: "Agosto",
+    9: "Setembro",
+    10: "Outubro",
+    11: "Novembro",
+    12: "Dezembro",
 }
 
 ALLOWED_SORT_COLUMNS = {
-    "reference_date": "reference_date",
-    "period_label": "period_label",
     "partner_name": "partner_name",
     "transferencia_qty": "transferencia_qty",
     "cautelar_qty": "cautelar_qty",
@@ -55,6 +58,7 @@ ALLOWED_SORT_COLUMNS = {
     "created_at": "created_at",
 }
 
+DEFAULT_FUTURE_MONTHS = 8
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
@@ -66,43 +70,54 @@ def get_db() -> sqlite3.Connection:
     return connection
 
 
-def normalize_period_label(label: str | None) -> str:
-    if not label:
+def normalize_text(value: str | None) -> str:
+    if not value:
         return ""
-    return (
-        label.strip()
-        .upper()
-        .replace("Ç", "C")
-        .replace("Ç", "C")
-        .replace("Ã", "A")
-        .replace("Á", "A")
-        .replace("Â", "A")
-        .replace("Ê", "E")
-        .replace("É", "E")
-        .replace("Í", "I")
-        .replace("Ó", "O")
-        .replace("Õ", "O")
-        .replace("Ú", "U")
+    normalized = unicodedata.normalize("NFKD", value.strip())
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    return ascii_only.upper()
+
+
+def month_key_from_parts(year_number: int, month_number: int) -> str:
+    return f"{year_number:04d}-{month_number:02d}"
+
+
+def title_from_month(month_number: int, year_number: int) -> str:
+    return f"{MONTH_TITLES[month_number]} {year_number}"
+
+
+def label_from_month(month_number: int) -> str:
+    return MONTH_LABELS[month_number]
+
+
+def parse_month_key(month_key: str) -> tuple[int, int]:
+    try:
+        year_raw, month_raw = month_key.split("-", 1)
+        year_number = int(year_raw)
+        month_number = int(month_raw)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("Mes invalido. Use o formato YYYY-MM.") from exc
+
+    if month_number < 1 or month_number > 12:
+        raise ValueError("Mes invalido. O valor do mes deve ficar entre 01 e 12.")
+
+    return year_number, month_number
+
+
+def shift_month(year_number: int, month_number: int, offset: int) -> tuple[int, int]:
+    absolute = (year_number * 12) + (month_number - 1) + offset
+    next_year = absolute // 12
+    next_month = (absolute % 12) + 1
+    return next_year, next_month
+
+
+def calculate_total(record: dict[str, Any]) -> float:
+    return round(
+        (record["transferencia_qty"] * record["unit_transferencia"])
+        + (record["cautelar_qty"] * record["unit_cautelar"])
+        + (record["pesquisa_qty"] * record["unit_pesquisa"]),
+        2,
     )
-
-
-def resolve_period_label(reference_date: str | None, fallback_label: str | None) -> str:
-    if reference_date:
-        try:
-            parsed = datetime.strptime(reference_date, "%Y-%m-%d")
-            return MONTH_LABELS[parsed.month]
-        except ValueError:
-            raise ValueError("A data deve estar no formato YYYY-MM-DD.")
-
-    normalized = normalize_period_label(fallback_label)
-    if normalized:
-        return normalized
-
-    return MONTH_LABELS[datetime.now().month]
-
-
-def resolve_period_sort(period_label: str) -> int:
-    return HISTORICAL_PERIOD_ORDER.get(period_label, 99)
 
 
 def to_int(value: Any, field_name: str) -> int:
@@ -123,27 +138,21 @@ def to_float(value: Any, field_name: str) -> float:
         raise ValueError(f"O campo '{field_name}' deve ser numerico.") from exc
 
 
-def calculate_total(record: dict[str, Any]) -> float:
-    return round(
-        (record["transferencia_qty"] * record["unit_transferencia"])
-        + (record["cautelar_qty"] * record["unit_cautelar"])
-        + (record["pesquisa_qty"] * record["unit_pesquisa"]),
-        2,
-    )
-
-
 def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     partner_name = (payload.get("partner_name") or "").strip()
     if not partner_name:
-        raise ValueError("O nome do parceiro/cliente e obrigatorio.")
+        raise ValueError("O nome do parceiro ou cliente e obrigatorio.")
 
-    reference_date = payload.get("reference_date") or None
-    period_label = resolve_period_label(reference_date, payload.get("period_label"))
+    month_key = (payload.get("month_key") or "").strip()
+    if not month_key:
+        raise ValueError("O mes ativo e obrigatorio.")
 
+    year_number, month_number = parse_month_key(month_key)
     record = {
-        "reference_date": reference_date,
-        "period_label": period_label,
-        "period_sort": resolve_period_sort(period_label),
+        "month_key": month_key,
+        "year_number": year_number,
+        "month_number": month_number,
+        "period_label": label_from_month(month_number),
         "partner_name": partner_name,
         "transferencia_qty": to_int(payload.get("transferencia_qty"), "transferencia_qty"),
         "cautelar_qty": to_int(payload.get("cautelar_qty"), "cautelar_qty"),
@@ -171,7 +180,7 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def serialize_record(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"],
-        "reference_date": row["reference_date"],
+        "month_key": row["month_key"],
         "period_label": row["period_label"],
         "partner_name": row["partner_name"],
         "transferencia_qty": row["transferencia_qty"],
@@ -186,13 +195,189 @@ def serialize_record(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def ensure_month(connection: sqlite3.Connection, year_number: int, month_number: int) -> str:
+    month_key = month_key_from_parts(year_number, month_number)
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO months (
+            month_key,
+            year_number,
+            month_number,
+            month_label,
+            month_title
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            month_key,
+            year_number,
+            month_number,
+            label_from_month(month_number),
+            title_from_month(month_number, year_number),
+        ),
+    )
+    return month_key
+
+
+def get_default_month_key() -> str:
+    now = datetime.now()
+    return month_key_from_parts(now.year, now.month)
+
+
+def infer_seed_month_map(seed_records: list[dict[str, Any]]) -> dict[str, str]:
+    ordered_labels: list[str] = []
+    for item in seed_records:
+        label = normalize_text(item.get("period_label"))
+        if label and label not in ordered_labels:
+            ordered_labels.append(label)
+
+    if not ordered_labels:
+        return {}
+
+    now = datetime.now()
+    current_label = label_from_month(now.month)
+    if current_label in ordered_labels:
+        anchor_index = ordered_labels.index(current_label)
+        anchor_year = now.year
+        anchor_month = now.month
+    else:
+        anchor_index = len(ordered_labels) - 1
+        anchor_year = now.year
+        anchor_month = now.month
+
+    month_map: dict[str, str] = {}
+    year_number = anchor_year
+    month_number = anchor_month
+    month_map[ordered_labels[anchor_index]] = month_key_from_parts(year_number, month_number)
+
+    cursor_year = year_number
+    cursor_month = month_number
+    for index in range(anchor_index - 1, -1, -1):
+        cursor_year, cursor_month = shift_month(cursor_year, cursor_month, -1)
+        month_map[ordered_labels[index]] = month_key_from_parts(cursor_year, cursor_month)
+
+    cursor_year = year_number
+    cursor_month = month_number
+    for index in range(anchor_index + 1, len(ordered_labels)):
+        cursor_year, cursor_month = shift_month(cursor_year, cursor_month, 1)
+        month_map[ordered_labels[index]] = month_key_from_parts(cursor_year, cursor_month)
+
+    return month_map
+
+
+def ensure_future_months(connection: sqlite3.Connection, future_count: int = DEFAULT_FUTURE_MONTHS) -> None:
+    current_year, current_month = parse_month_key(get_default_month_key())
+    ensure_month(connection, current_year, current_month)
+
+    row = connection.execute(
+        """
+        SELECT year_number, month_number
+        FROM months
+        ORDER BY year_number DESC, month_number DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+    latest_year = row["year_number"] if row else current_year
+    latest_month = row["month_number"] if row else current_month
+
+    for offset in range(1, future_count + 1):
+        next_year, next_month = shift_month(latest_year, latest_month, offset)
+        ensure_month(connection, next_year, next_month)
+
+
+def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
+    row = connection.execute(
+        """
+        SELECT
+            COALESCE(SUM(total_value), 0) AS total_value,
+            COALESCE(SUM(transferencia_qty), 0) AS transferencia_qty,
+            COALESCE(SUM(cautelar_qty), 0) AS cautelar_qty,
+            COALESCE(SUM(pesquisa_qty), 0) AS pesquisa_qty,
+            COUNT(*) AS record_count
+        FROM records
+        WHERE month_key = ?
+        """,
+        (month_key,),
+    ).fetchone()
+
+    total_operations = (
+        row["transferencia_qty"] + row["cautelar_qty"] + row["pesquisa_qty"]
+    )
+
+    def percentage(value: int) -> float:
+        if total_operations == 0:
+            return 0.0
+        return round((value / total_operations) * 100, 2)
+
+    return {
+        "total_value": row["total_value"],
+        "record_count": row["record_count"],
+        "transferencia_qty": row["transferencia_qty"],
+        "cautelar_qty": row["cautelar_qty"],
+        "pesquisa_qty": row["pesquisa_qty"],
+        "total_operations": total_operations,
+        "transferencia_pct": percentage(row["transferencia_qty"]),
+        "cautelar_pct": percentage(row["cautelar_qty"]),
+        "pesquisa_pct": percentage(row["pesquisa_qty"]),
+    }
+
+
+def list_months(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+    current_key = get_default_month_key()
+    rows = connection.execute(
+        """
+        SELECT
+            m.month_key,
+            m.month_label,
+            m.month_title,
+            m.year_number,
+            m.month_number,
+            COUNT(r.id) AS record_count,
+            COALESCE(SUM(r.total_value), 0) AS total_value
+        FROM months m
+        LEFT JOIN records r ON r.month_key = m.month_key
+        GROUP BY
+            m.month_key,
+            m.month_label,
+            m.month_title,
+            m.year_number,
+            m.month_number
+        ORDER BY m.year_number, m.month_number
+        """
+    ).fetchall()
+
+    return [
+        {
+            "month_key": row["month_key"],
+            "month_label": row["month_label"],
+            "month_title": row["month_title"],
+            "year_number": row["year_number"],
+            "month_number": row["month_number"],
+            "record_count": row["record_count"],
+            "total_value": row["total_value"],
+            "is_current": row["month_key"] == current_key,
+        }
+        for row in rows
+    ]
+
+
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_db() as connection:
         connection.executescript(
             """
+            CREATE TABLE IF NOT EXISTS months (
+                month_key TEXT PRIMARY KEY,
+                year_number INTEGER NOT NULL,
+                month_number INTEGER NOT NULL,
+                month_label TEXT NOT NULL,
+                month_title TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                month_key TEXT,
                 reference_date TEXT,
                 period_label TEXT NOT NULL,
                 period_sort INTEGER NOT NULL DEFAULT 99,
@@ -209,17 +394,29 @@ def init_db() -> None:
             );
 
             CREATE INDEX IF NOT EXISTS idx_records_partner ON records (partner_name);
-            CREATE INDEX IF NOT EXISTS idx_records_period ON records (period_label, period_sort);
-            CREATE INDEX IF NOT EXISTS idx_records_date ON records (reference_date);
+            CREATE INDEX IF NOT EXISTS idx_records_month ON records (month_key);
+            CREATE INDEX IF NOT EXISTS idx_months_sort ON months (year_number, month_number);
             """
         )
 
-        count = connection.execute("SELECT COUNT(*) FROM records").fetchone()[0]
-        if count == 0 and SEED_PATH.exists():
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(records)").fetchall()
+        }
+        if "month_key" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN month_key TEXT")
+
+        record_count = connection.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+        if record_count == 0 and SEED_PATH.exists():
             seed_records = json.loads(SEED_PATH.read_text(encoding="utf-8-sig"))
+            seed_month_map = infer_seed_month_map(seed_records)
+            for month_key in sorted(set(seed_month_map.values())):
+                year_number, month_number = parse_month_key(month_key)
+                ensure_month(connection, year_number, month_number)
+
             connection.executemany(
                 """
                 INSERT INTO records (
+                    month_key,
                     reference_date,
                     period_label,
                     period_sort,
@@ -231,13 +428,14 @@ def init_db() -> None:
                     unit_cautelar,
                     unit_pesquisa,
                     total_value
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
+                        seed_month_map.get(normalize_text(item["period_label"]), get_default_month_key()),
                         None,
-                        normalize_period_label(item["period_label"]),
-                        resolve_period_sort(normalize_period_label(item["period_label"])),
+                        normalize_text(item["period_label"]),
+                        0,
                         item["partner_name"],
                         item["transferencia_qty"],
                         item["cautelar_qty"],
@@ -250,6 +448,49 @@ def init_db() -> None:
                     for item in seed_records
                 ],
             )
+
+        existing_bound_months = connection.execute(
+            """
+            SELECT DISTINCT month_key
+            FROM records
+            WHERE month_key IS NOT NULL AND month_key <> ''
+            """
+        ).fetchall()
+        for row in existing_bound_months:
+            year_number, month_number = parse_month_key(row["month_key"])
+            ensure_month(connection, year_number, month_number)
+
+        existing_month_keys = connection.execute(
+            "SELECT DISTINCT month_key, period_label FROM records"
+        ).fetchall()
+        if any(not row["month_key"] for row in existing_month_keys):
+            labels = [
+                {"period_label": row["period_label"]}
+                for row in connection.execute(
+                    """
+                    SELECT period_label, MIN(id) AS first_id
+                    FROM records
+                    WHERE (month_key IS NULL OR month_key = '')
+                    GROUP BY period_label
+                    ORDER BY first_id
+                    """
+                ).fetchall()
+            ]
+            inferred_map = infer_seed_month_map(labels)
+            for label, month_key in inferred_map.items():
+                year_number, month_number = parse_month_key(month_key)
+                ensure_month(connection, year_number, month_number)
+                connection.execute(
+                    """
+                    UPDATE records
+                    SET month_key = ?
+                    WHERE (month_key IS NULL OR month_key = '')
+                      AND period_label = ?
+                    """,
+                    (month_key, label),
+                )
+
+        ensure_future_months(connection)
 
 
 @app.route("/")
@@ -267,53 +508,43 @@ def healthcheck():
 @app.get("/api/records")
 def list_records():
     search = (request.args.get("search") or "").strip()
-    period = normalize_period_label(request.args.get("period"))
+    month_key = (request.args.get("month_key") or get_default_month_key()).strip()
     sort_by = ALLOWED_SORT_COLUMNS.get(request.args.get("sort_by"), "partner_name")
     sort_order = "DESC" if (request.args.get("sort_order") or "").lower() == "desc" else "ASC"
 
-    conditions: list[str] = []
-    params: list[Any] = []
-
-    if search:
-        conditions.append("(partner_name LIKE ? OR period_label LIKE ?)")
-        term = f"%{search}%"
-        params.extend([term, term])
-
-    if period:
-        conditions.append("period_label = ?")
-        params.append(period)
-
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    query = f"""
-        SELECT *
-        FROM records
-        {where_clause}
-        ORDER BY
-            CASE WHEN reference_date IS NULL OR reference_date = '' THEN 1 ELSE 0 END,
-            reference_date DESC,
-            period_sort ASC,
-            {sort_by} {sort_order},
-            partner_name ASC
-    """
+    try:
+        year_number, month_number = parse_month_key(month_key)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     with get_db() as connection:
+        ensure_month(connection, year_number, month_number)
+        ensure_future_months(connection)
+
+        conditions = ["month_key = ?"]
+        params: list[Any] = [month_key]
+
+        if search:
+            conditions.append("partner_name LIKE ?")
+            params.append(f"%{search}%")
+
+        query = f"""
+            SELECT *
+            FROM records
+            WHERE {' AND '.join(conditions)}
+            ORDER BY {sort_by} {sort_order}, partner_name ASC, id DESC
+        """
         rows = connection.execute(query, params).fetchall()
-        periods = [
-            row["period_label"]
-            for row in connection.execute(
-                """
-                SELECT period_label, MIN(period_sort) AS period_rank
-                FROM records
-                GROUP BY period_label
-                ORDER BY period_rank, period_label
-                """
-            ).fetchall()
-        ]
+        months = list_months(connection)
+        summary = summarize_month(connection, month_key)
+        active_month = next((item for item in months if item["month_key"] == month_key), None)
 
     return jsonify(
         {
             "records": [serialize_record(row) for row in rows],
-            "periods": periods,
+            "months": months,
+            "summary": summary,
+            "active_month": active_month,
             "meta": {"total_records": len(rows)},
         }
     )
@@ -328,9 +559,11 @@ def create_record():
         return jsonify({"error": str(exc)}), 400
 
     with get_db() as connection:
+        ensure_month(connection, record["year_number"], record["month_number"])
         cursor = connection.execute(
             """
             INSERT INTO records (
+                month_key,
                 reference_date,
                 period_label,
                 period_sort,
@@ -343,12 +576,11 @@ def create_record():
                 unit_pesquisa,
                 total_value,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
             (
-                record["reference_date"],
+                record["month_key"],
                 record["period_label"],
-                record["period_sort"],
                 record["partner_name"],
                 record["transferencia_qty"],
                 record["cautelar_qty"],
@@ -359,9 +591,8 @@ def create_record():
                 record["total_value"],
             ),
         )
-        row = connection.execute(
-            "SELECT * FROM records WHERE id = ?", (cursor.lastrowid,)
-        ).fetchone()
+        ensure_future_months(connection)
+        row = connection.execute("SELECT * FROM records WHERE id = ?", (cursor.lastrowid,)).fetchone()
 
     return jsonify(serialize_record(row)), 201
 
@@ -379,13 +610,14 @@ def update_record(record_id: int):
         if existing is None:
             return jsonify({"error": "Registro nao encontrado."}), 404
 
+        ensure_month(connection, record["year_number"], record["month_number"])
         connection.execute(
             """
             UPDATE records
             SET
-                reference_date = ?,
+                month_key = ?,
+                reference_date = NULL,
                 period_label = ?,
-                period_sort = ?,
                 partner_name = ?,
                 transferencia_qty = ?,
                 cautelar_qty = ?,
@@ -398,9 +630,8 @@ def update_record(record_id: int):
             WHERE id = ?
             """,
             (
-                record["reference_date"],
+                record["month_key"],
                 record["period_label"],
-                record["period_sort"],
                 record["partner_name"],
                 record["transferencia_qty"],
                 record["cautelar_qty"],
@@ -412,6 +643,7 @@ def update_record(record_id: int):
                 record_id,
             ),
         )
+        ensure_future_months(connection)
         row = connection.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
 
     return jsonify(serialize_record(row))
@@ -423,6 +655,7 @@ def delete_record(record_id: int):
         cursor = connection.execute("DELETE FROM records WHERE id = ?", (record_id,))
         if cursor.rowcount == 0:
             return jsonify({"error": "Registro nao encontrado."}), 404
+        ensure_future_months(connection)
 
     return jsonify({"message": "Registro excluido com sucesso."})
 

@@ -11,46 +11,78 @@
       <section class="hero">
         <div>
           <p class="eyebrow">Pedido Ricardo</p>
-          <h1>Controle web para substituir a planilha</h1>
+          <h1>Controle mensal com abas e resumo automatico</h1>
           <p class="hero-copy">
-            Visualize, filtre, ordene e mantenha os registros do dia a dia em um banco SQLite,
-            sem depender mais do Excel.
+            Trabalhe mes a mes, lance os registros do dia a dia direto na aba ativa e acompanhe
+            os totais sem depender de calculos manuais.
           </p>
         </div>
         <div class="hero-card">
           <div>
-            <span class="hero-label">Registros exibidos</span>
-            <strong id="record-count">0</strong>
+            <span class="hero-label">Mes ativo</span>
+            <strong id="active-month-title">-</strong>
           </div>
           <div>
-            <span class="hero-label">Períodos</span>
-            <strong id="period-count">0</strong>
+            <span class="hero-label">Registros no mes</span>
+            <strong id="record-count">0</strong>
           </div>
         </div>
       </section>
 
+      <section class="panel tabs-panel">
+        <div class="tabs-header">
+          <div>
+            <p class="section-tag">Navegacao mensal</p>
+            <h2>Meses</h2>
+          </div>
+          <span id="period-count" class="summary-pill neutral-pill">0 meses</span>
+        </div>
+        <div id="month-tabs" class="month-tabs"></div>
+      </section>
+
       <section class="panel controls-panel">
         <div class="filters">
-          <label class="field compact">
-            <span>Busca</span>
-            <input id="search-input" type="search" placeholder="Cliente, parceiro ou mês" />
+          <label class="field compact search-field">
+            <span>Busca no mes ativo</span>
+            <input id="search-input" type="search" placeholder="Buscar parceiro ou cliente" />
           </label>
-          <label class="field compact">
-            <span>Período</span>
-            <select id="period-filter">
-              <option value="">Todos</option>
-            </select>
-          </label>
+          <div class="totals-inline">
+            <span class="hero-label">Valor total</span>
+            <strong id="header-total-value">R$ 0,00</strong>
+          </div>
           <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
         </div>
+      </section>
+
+      <section class="summary-grid">
+        <article class="panel stat-card">
+          <span class="section-tag">Total do mes</span>
+          <strong id="summary-total-value">R$ 0,00</strong>
+          <p>Soma automatica de todos os registros do mes selecionado.</p>
+        </article>
+        <article class="panel stat-card">
+          <span class="section-tag">Transferencias</span>
+          <strong id="summary-transferencia-qty">0</strong>
+          <p id="summary-transferencia-pct">0% do total de operacoes</p>
+        </article>
+        <article class="panel stat-card">
+          <span class="section-tag">Cautelares</span>
+          <strong id="summary-cautelar-qty">0</strong>
+          <p id="summary-cautelar-pct">0% do total de operacoes</p>
+        </article>
+        <article class="panel stat-card">
+          <span class="section-tag">Pesquisas</span>
+          <strong id="summary-pesquisa-qty">0</strong>
+          <p id="summary-pesquisa-pct">0% do total de operacoes</p>
+        </article>
       </section>
 
       <section class="grid">
         <section class="panel">
           <div class="section-header">
             <div>
-              <p class="section-tag">Base de dados</p>
-              <h2>Registros</h2>
+              <p class="section-tag">Base do mes</p>
+              <h2>Tabela de registros</h2>
             </div>
             <button id="new-record-button" class="primary-button" type="button">Novo registro</button>
           </div>
@@ -59,8 +91,6 @@
             <table>
               <thead>
                 <tr>
-                  <th data-sort="reference_date">Data</th>
-                  <th data-sort="period_label">Período</th>
                   <th data-sort="partner_name">Parceiro</th>
                   <th data-sort="transferencia_qty">Transfer.</th>
                   <th data-sort="cautelar_qty">Cautelar</th>
@@ -69,12 +99,12 @@
                   <th data-sort="unit_cautelar">Vlr. Cautelar</th>
                   <th data-sort="unit_pesquisa">Vlr. Pesquisa</th>
                   <th data-sort="total_value">Total</th>
-                  <th>Ações</th>
+                  <th>Acoes</th>
                 </tr>
               </thead>
               <tbody id="records-body">
                 <tr>
-                  <td colspan="11" class="empty-state">Carregando registros...</td>
+                  <td colspan="9" class="empty-state">Carregando registros...</td>
                 </tr>
               </tbody>
             </table>
@@ -84,23 +114,14 @@
         <aside class="panel form-panel">
           <div class="section-header">
             <div>
-              <p class="section-tag">Cadastro</p>
+              <p class="section-tag">Cadastro diario</p>
               <h2 id="form-title">Novo registro</h2>
+              <p id="form-month-caption" class="form-caption">Mes ativo: -</p>
             </div>
           </div>
 
           <form id="record-form">
             <input id="record-id" type="hidden" />
-
-            <label class="field">
-              <span>Data de referência</span>
-              <input id="reference-date" type="date" />
-            </label>
-
-            <label class="field">
-              <span>Período</span>
-              <input id="period-label" type="text" placeholder="Ex.: ABRIL" maxlength="20" />
-            </label>
 
             <label class="field">
               <span>Parceiro / cliente</span>
@@ -109,7 +130,7 @@
 
             <div class="three-columns">
               <label class="field">
-                <span>Qtd. transferência</span>
+                <span>Qtd. transferencia</span>
                 <input id="transferencia-qty" type="number" min="0" step="1" value="0" />
               </label>
               <label class="field">
@@ -124,7 +145,7 @@
 
             <div class="three-columns">
               <label class="field">
-                <span>Valor transferência</span>
+                <span>Valor transferencia</span>
                 <input id="unit-transferencia" type="number" min="0" step="0.01" value="160" />
               </label>
               <label class="field">
@@ -138,7 +159,7 @@
             </div>
 
             <div class="total-box">
-              <span>Total calculado</span>
+              <span>Total calculado automaticamente</span>
               <strong id="calculated-total">R$ 0,00</strong>
             </div>
 
@@ -150,13 +171,6 @@
         </aside>
       </section>
     </main>
-
-    <template id="row-actions-template">
-      <div class="actions">
-        <button class="icon-button edit-button" type="button">Editar</button>
-        <button class="icon-button danger-button delete-button" type="button">Excluir</button>
-      </div>
-    </template>
 
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   </body>

@@ -1,23 +1,33 @@
 const state = {
   records: [],
-  periods: [],
+  months: [],
+  activeMonthKey: "",
   sortBy: "partner_name",
   sortOrder: "asc",
+  summary: null,
 };
 
 const elements = {
+  monthTabs: document.querySelector("#month-tabs"),
   searchInput: document.querySelector("#search-input"),
-  periodFilter: document.querySelector("#period-filter"),
   refreshButton: document.querySelector("#refresh-button"),
   newRecordButton: document.querySelector("#new-record-button"),
   recordsBody: document.querySelector("#records-body"),
   recordCount: document.querySelector("#record-count"),
   periodCount: document.querySelector("#period-count"),
+  activeMonthTitle: document.querySelector("#active-month-title"),
+  headerTotalValue: document.querySelector("#header-total-value"),
+  summaryTotalValue: document.querySelector("#summary-total-value"),
+  summaryTransferenciaQty: document.querySelector("#summary-transferencia-qty"),
+  summaryTransferenciaPct: document.querySelector("#summary-transferencia-pct"),
+  summaryCautelarQty: document.querySelector("#summary-cautelar-qty"),
+  summaryCautelarPct: document.querySelector("#summary-cautelar-pct"),
+  summaryPesquisaQty: document.querySelector("#summary-pesquisa-qty"),
+  summaryPesquisaPct: document.querySelector("#summary-pesquisa-pct"),
   formTitle: document.querySelector("#form-title"),
+  formMonthCaption: document.querySelector("#form-month-caption"),
   form: document.querySelector("#record-form"),
   recordId: document.querySelector("#record-id"),
-  referenceDate: document.querySelector("#reference-date"),
-  periodLabel: document.querySelector("#period-label"),
   partnerName: document.querySelector("#partner-name"),
   transferenciaQty: document.querySelector("#transferencia-qty"),
   cautelarQty: document.querySelector("#cautelar-qty"),
@@ -36,19 +46,16 @@ function formatCurrency(value) {
   }).format(Number(value || 0));
 }
 
-function formatDate(dateString) {
-  if (!dateString) {
-    return "Histórico";
-  }
-
-  const [year, month, day] = dateString.split("-");
-  return `${day}/${month}/${year}`;
+function formatPercent(value) {
+  return `${Number(value || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}% do total de operacoes`;
 }
 
 function currentPayload() {
   return {
-    reference_date: elements.referenceDate.value || null,
-    period_label: elements.periodLabel.value.trim(),
+    month_key: state.activeMonthKey,
     partner_name: elements.partnerName.value.trim(),
     transferencia_qty: Number(elements.transferenciaQty.value || 0),
     cautelar_qty: Number(elements.cautelarQty.value || 0),
@@ -67,6 +74,10 @@ function calculateTotal(payload) {
   );
 }
 
+function getActiveMonth() {
+  return state.months.find((month) => month.month_key === state.activeMonthKey) || null;
+}
+
 function updateCalculatedTotal() {
   elements.calculatedTotal.textContent = formatCurrency(calculateTotal(currentPayload()));
 }
@@ -81,31 +92,67 @@ function resetForm() {
   elements.unitTransferencia.value = 160;
   elements.unitCautelar.value = 240;
   elements.unitPesquisa.value = 80;
+
+  const activeMonth = getActiveMonth();
+  const monthTitle = activeMonth ? activeMonth.month_title : "-";
+  elements.formMonthCaption.textContent = `Mes ativo: ${monthTitle}`;
   updateCalculatedTotal();
 }
 
-function populatePeriods() {
-  const currentValue = elements.periodFilter.value;
-  elements.periodFilter.innerHTML = '<option value="">Todos</option>';
+function renderMonthTabs() {
+  elements.monthTabs.innerHTML = "";
 
-  state.periods.forEach((period) => {
-    const option = document.createElement("option");
-    option.value = period;
-    option.textContent = period;
-    if (period === currentValue) {
-      option.selected = true;
-    }
-    elements.periodFilter.appendChild(option);
+  state.months.forEach((month) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `month-tab ${month.month_key === state.activeMonthKey ? "is-active" : ""}`;
+    button.innerHTML = `
+      <span>${month.month_title}</span>
+      <small>${month.record_count} registro(s)</small>
+    `;
+    button.addEventListener("click", async () => {
+      if (state.activeMonthKey === month.month_key) {
+        return;
+      }
+      state.activeMonthKey = month.month_key;
+      resetForm();
+      await loadRecords();
+    });
+    elements.monthTabs.appendChild(button);
   });
 
-  elements.periodCount.textContent = state.periods.length;
+  elements.periodCount.textContent = `${state.months.length} meses`;
+}
+
+function renderSummary() {
+  const summary = state.summary || {
+    total_value: 0,
+    transferencia_qty: 0,
+    cautelar_qty: 0,
+    pesquisa_qty: 0,
+    transferencia_pct: 0,
+    cautelar_pct: 0,
+    pesquisa_pct: 0,
+    record_count: 0,
+  };
+
+  const activeMonth = getActiveMonth();
+  elements.activeMonthTitle.textContent = activeMonth ? activeMonth.month_title : "-";
+  elements.recordCount.textContent = String(summary.record_count || 0);
+  elements.headerTotalValue.textContent = formatCurrency(summary.total_value);
+  elements.summaryTotalValue.textContent = formatCurrency(summary.total_value);
+  elements.summaryTransferenciaQty.textContent = String(summary.transferencia_qty || 0);
+  elements.summaryTransferenciaPct.textContent = formatPercent(summary.transferencia_pct);
+  elements.summaryCautelarQty.textContent = String(summary.cautelar_qty || 0);
+  elements.summaryCautelarPct.textContent = formatPercent(summary.cautelar_pct);
+  elements.summaryPesquisaQty.textContent = String(summary.pesquisa_qty || 0);
+  elements.summaryPesquisaPct.textContent = formatPercent(summary.pesquisa_pct);
 }
 
 function renderTable() {
   if (!state.records.length) {
     elements.recordsBody.innerHTML =
-      '<tr><td colspan="11" class="empty-state">Nenhum registro encontrado para os filtros atuais.</td></tr>';
-    elements.recordCount.textContent = "0";
+      '<tr><td colspan="9" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
     return;
   }
 
@@ -113,8 +160,6 @@ function renderTable() {
   state.records.forEach((record) => {
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${formatDate(record.reference_date)}</td>
-      <td>${record.period_label}</td>
       <td>${record.partner_name}</td>
       <td>${record.transferencia_qty}</td>
       <td>${record.cautelar_qty}</td>
@@ -132,13 +177,13 @@ function renderTable() {
 
     const editButton = document.createElement("button");
     editButton.type = "button";
-    editButton.className = "icon-button edit-button";
+    editButton.className = "icon-button";
     editButton.textContent = "Editar";
     editButton.addEventListener("click", () => fillForm(record));
 
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
-    deleteButton.className = "icon-button danger-button delete-button";
+    deleteButton.className = "icon-button danger-button";
     deleteButton.textContent = "Excluir";
     deleteButton.addEventListener("click", () => removeRecord(record.id));
 
@@ -146,31 +191,44 @@ function renderTable() {
     actionsCell.appendChild(actionWrap);
     elements.recordsBody.appendChild(row);
   });
-
-  elements.recordCount.textContent = String(state.records.length);
 }
 
 async function loadRecords() {
+  if (!state.activeMonthKey) {
+    const today = new Date();
+    state.activeMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  }
+
   const params = new URLSearchParams({
     search: elements.searchInput.value.trim(),
-    period: elements.periodFilter.value,
+    month_key: state.activeMonthKey,
     sort_by: state.sortBy,
     sort_order: state.sortOrder,
   });
 
   const response = await fetch(`/api/records?${params.toString()}`);
   const data = await response.json();
-  state.records = data.records;
-  state.periods = data.periods;
-  populatePeriods();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel carregar os registros.");
+    return;
+  }
+
+  state.records = data.records || [];
+  state.months = data.months || [];
+  state.summary = data.summary || null;
+  if (data.active_month?.month_key) {
+    state.activeMonthKey = data.active_month.month_key;
+  }
+
+  renderMonthTabs();
+  renderSummary();
   renderTable();
+  resetForm();
 }
 
 function fillForm(record) {
   elements.formTitle.textContent = `Editando #${record.id}`;
   elements.recordId.value = record.id;
-  elements.referenceDate.value = record.reference_date || "";
-  elements.periodLabel.value = record.period_label || "";
   elements.partnerName.value = record.partner_name || "";
   elements.transferenciaQty.value = record.transferencia_qty ?? 0;
   elements.cautelarQty.value = record.cautelar_qty ?? 0;
@@ -198,11 +256,10 @@ async function saveRecord(event) {
 
   const data = await response.json();
   if (!response.ok) {
-    alert(data.error || "Não foi possível salvar o registro.");
+    alert(data.error || "Nao foi possivel salvar o registro.");
     return;
   }
 
-  resetForm();
   await loadRecords();
 }
 
@@ -215,7 +272,7 @@ async function removeRecord(recordId) {
   const response = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
   const data = await response.json();
   if (!response.ok) {
-    alert(data.error || "Não foi possível excluir o registro.");
+    alert(data.error || "Nao foi possivel excluir o registro.");
     return;
   }
 
@@ -243,11 +300,8 @@ function setupEvents() {
   elements.refreshButton.addEventListener("click", loadRecords);
   elements.newRecordButton.addEventListener("click", resetForm);
   elements.searchInput.addEventListener("input", loadRecords);
-  elements.periodFilter.addEventListener("change", loadRecords);
 
   [
-    elements.referenceDate,
-    elements.periodLabel,
     elements.partnerName,
     elements.transferenciaQty,
     elements.cautelarQty,
