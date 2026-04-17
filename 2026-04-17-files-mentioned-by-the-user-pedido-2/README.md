@@ -7,12 +7,14 @@ Sistema web em Flask para controle mensal de pedidos com:
 - edicao inline;
 - exportacao em Excel e PDF;
 - area separada de comparacao entre meses;
+- area separada de comparacao entre clientes;
 - dashboard visual com evolucao e comparacao por tipo.
 
 ## Rotas principais
 
 - `/`: tela principal
 - `/comparison`: analise comparativa entre meses
+- `/client-comparison`: analise comparativa entre clientes
 - `/api/records`: dados da tela principal
 - `/api/comparison`: dados analiticos
 - `/api/export/<month_key>.xlsx`
@@ -28,10 +30,12 @@ Tabela `records`
 
 - `partner_name`
 - `transferencia_qty`
+- `caminhao_transferencia_qty`
 - `combo_transferencia_qty`
 - `cautelar_qty`
 - `pesquisa_qty`
 - `unit_transferencia`
+- `unit_caminhao_transferencia`
 - `unit_combo_transferencia`
 - `unit_cautelar`
 - `unit_pesquisa`

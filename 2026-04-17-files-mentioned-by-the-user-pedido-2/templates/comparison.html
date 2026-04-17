@@ -52,6 +52,15 @@
           </div>
           <div id="pie-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
           <canvas id="pie-chart-canvas" class="chart-canvas hidden"></canvas>
+          <div class="chart-divider"></div>
+          <div class="section-header compact-header">
+            <div>
+              <p class="section-tag">Quantidade</p>
+              <h2>Vistorias por tipo</h2>
+            </div>
+          </div>
+          <div id="quantity-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <canvas id="quantity-chart-canvas" class="chart-canvas hidden"></canvas>
         </article>
 
         <article class="panel chart-panel">
@@ -122,6 +131,28 @@
           <button id="compare-months-button" class="primary-button" type="button">Comparar meses</button>
         </div>
         <div id="month-compare-results" class="month-compare-grid"></div>
+        <div class="comparison-grid compare-chart-grid">
+          <article class="panel chart-panel inner-panel">
+            <div class="section-header">
+              <div>
+                <p class="section-tag">Valores</p>
+                <h2>Comparativo lado a lado</h2>
+              </div>
+            </div>
+            <div id="month-values-compare-empty" class="chart-surface empty-chart">Compare dois meses para visualizar.</div>
+            <canvas id="month-values-compare-canvas" class="chart-canvas hidden"></canvas>
+          </article>
+          <article class="panel chart-panel inner-panel">
+            <div class="section-header">
+              <div>
+                <p class="section-tag">Quantidade</p>
+                <h2>Vistorias lado a lado</h2>
+              </div>
+            </div>
+            <div id="month-quantity-compare-empty" class="chart-surface empty-chart">Compare dois meses para visualizar.</div>
+            <canvas id="month-quantity-compare-canvas" class="chart-canvas hidden"></canvas>
+          </article>
+        </div>
       </section>
 
       <section class="panel">
@@ -139,6 +170,7 @@
                 <th>Mes</th>
                 <th>Total geral</th>
                 <th>Total Transferencia</th>
+                <th>Total Transf. Caminhao</th>
                 <th>Total Transf. Combo</th>
                 <th>Total Cautelar</th>
                 <th>Total Pesquisa</th>
@@ -146,7 +178,7 @@
             </thead>
             <tbody id="comparison-body">
               <tr>
-                <td colspan="6" class="empty-state">Carregando comparacao...</td>
+                <td colspan="7" class="empty-state">Carregando comparacao...</td>
               </tr>
             </tbody>
           </table>

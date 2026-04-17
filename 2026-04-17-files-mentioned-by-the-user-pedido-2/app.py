@@ -57,10 +57,12 @@ MONTH_TITLES = {
 ALLOWED_SORT_COLUMNS = {
     "partner_name": "partner_name",
     "transferencia_qty": "transferencia_qty",
+    "caminhao_transferencia_qty": "caminhao_transferencia_qty",
     "combo_transferencia_qty": "combo_transferencia_qty",
     "cautelar_qty": "cautelar_qty",
     "pesquisa_qty": "pesquisa_qty",
     "unit_transferencia": "unit_transferencia",
+    "unit_caminhao_transferencia": "unit_caminhao_transferencia",
     "unit_combo_transferencia": "unit_combo_transferencia",
     "unit_cautelar": "unit_cautelar",
     "unit_pesquisa": "unit_pesquisa",
@@ -162,6 +164,7 @@ def to_float(value: Any, field_name: str) -> float:
 def calculate_total(record: dict[str, Any]) -> float:
     return round(
         (record["transferencia_qty"] * record["unit_transferencia"])
+        + (record["caminhao_transferencia_qty"] * record["unit_caminhao_transferencia"])
         + (record["combo_transferencia_qty"] * record["unit_combo_transferencia"])
         + (record["cautelar_qty"] * record["unit_cautelar"])
         + (record["pesquisa_qty"] * record["unit_pesquisa"]),
@@ -188,10 +191,16 @@ def validate_main_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "period_label": label_from_month(month_number),
         "partner_name": partner_name,
         "transferencia_qty": to_int(payload.get("transferencia_qty"), "transferencia_qty"),
+        "caminhao_transferencia_qty": to_int(
+            payload.get("caminhao_transferencia_qty"), "caminhao_transferencia_qty"
+        ),
         "combo_transferencia_qty": to_int(payload.get("combo_transferencia_qty"), "combo_transferencia_qty"),
         "cautelar_qty": to_int(payload.get("cautelar_qty"), "cautelar_qty"),
         "pesquisa_qty": to_int(payload.get("pesquisa_qty"), "pesquisa_qty"),
         "unit_transferencia": to_float(payload.get("unit_transferencia"), "unit_transferencia"),
+        "unit_caminhao_transferencia": to_float(
+            payload.get("unit_caminhao_transferencia"), "unit_caminhao_transferencia"
+        ),
         "unit_combo_transferencia": to_float(payload.get("unit_combo_transferencia"), "unit_combo_transferencia"),
         "unit_cautelar": to_float(payload.get("unit_cautelar"), "unit_cautelar"),
         "unit_pesquisa": to_float(payload.get("unit_pesquisa"), "unit_pesquisa"),
@@ -199,10 +208,12 @@ def validate_main_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     for field_name in (
         "transferencia_qty",
+        "caminhao_transferencia_qty",
         "combo_transferencia_qty",
         "cautelar_qty",
         "pesquisa_qty",
         "unit_transferencia",
+        "unit_caminhao_transferencia",
         "unit_combo_transferencia",
         "unit_cautelar",
         "unit_pesquisa",
@@ -221,10 +232,12 @@ def serialize_main_record(row: sqlite3.Row) -> dict[str, Any]:
         "period_label": row["period_label"],
         "partner_name": row["partner_name"],
         "transferencia_qty": row["transferencia_qty"],
+        "caminhao_transferencia_qty": row["caminhao_transferencia_qty"],
         "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
         "unit_transferencia": row["unit_transferencia"],
+        "unit_caminhao_transferencia": row["unit_caminhao_transferencia"],
         "unit_combo_transferencia": row["unit_combo_transferencia"],
         "unit_cautelar": row["unit_cautelar"],
         "unit_pesquisa": row["unit_pesquisa"],
@@ -297,10 +310,12 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         SELECT
             COALESCE(SUM(total_value), 0) AS total_value,
             COALESCE(SUM(transferencia_qty), 0) AS transferencia_qty,
+            COALESCE(SUM(caminhao_transferencia_qty), 0) AS caminhao_transferencia_qty,
             COALESCE(SUM(combo_transferencia_qty), 0) AS combo_transferencia_qty,
             COALESCE(SUM(cautelar_qty), 0) AS cautelar_qty,
             COALESCE(SUM(pesquisa_qty), 0) AS pesquisa_qty,
             COALESCE(SUM(transferencia_qty * unit_transferencia), 0) AS transferencia_total_value,
+            COALESCE(SUM(caminhao_transferencia_qty * unit_caminhao_transferencia), 0) AS caminhao_transferencia_total_value,
             COALESCE(SUM(combo_transferencia_qty * unit_combo_transferencia), 0) AS combo_transferencia_total_value,
             COALESCE(SUM(cautelar_qty * unit_cautelar), 0) AS cautelar_total_value,
             COALESCE(SUM(pesquisa_qty * unit_pesquisa), 0) AS pesquisa_total_value,
@@ -313,10 +328,13 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
 
     total_operations = (
         row["transferencia_qty"]
+        + row["caminhao_transferencia_qty"]
         + row["combo_transferencia_qty"]
         + row["cautelar_qty"]
         + row["pesquisa_qty"]
     )
+    transferencia_group_qty = row["transferencia_qty"] + row["caminhao_transferencia_qty"]
+    transferencia_group_total_value = row["transferencia_total_value"] + row["caminhao_transferencia_total_value"]
 
     def percentage(value: int) -> float:
         if total_operations == 0:
@@ -327,15 +345,20 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         "total_value": row["total_value"],
         "record_count": row["record_count"],
         "transferencia_qty": row["transferencia_qty"],
+        "caminhao_transferencia_qty": row["caminhao_transferencia_qty"],
         "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
         "transferencia_total_value": row["transferencia_total_value"],
+        "caminhao_transferencia_total_value": row["caminhao_transferencia_total_value"],
         "combo_transferencia_total_value": row["combo_transferencia_total_value"],
         "cautelar_total_value": row["cautelar_total_value"],
         "pesquisa_total_value": row["pesquisa_total_value"],
+        "transferencia_group_qty": transferencia_group_qty,
+        "transferencia_group_total_value": transferencia_group_total_value,
         "total_operations": total_operations,
-        "transferencia_pct": percentage(row["transferencia_qty"]),
+        "transferencia_pct": percentage(transferencia_group_qty),
+        "caminhao_transferencia_pct": percentage(row["caminhao_transferencia_qty"]),
         "combo_transferencia_pct": percentage(row["combo_transferencia_qty"]),
         "cautelar_pct": percentage(row["cautelar_qty"]),
         "pesquisa_pct": percentage(row["pesquisa_qty"]),
@@ -423,6 +446,7 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             COUNT(r.id) AS record_count,
             COALESCE(SUM(r.total_value), 0) AS total_value,
             COALESCE(SUM(r.transferencia_qty * r.unit_transferencia), 0) AS transferencia_total_value,
+            COALESCE(SUM(r.caminhao_transferencia_qty * r.unit_caminhao_transferencia), 0) AS caminhao_transferencia_total_value,
             COALESCE(SUM(r.combo_transferencia_qty * r.unit_combo_transferencia), 0) AS combo_transferencia_total_value,
             COALESCE(SUM(r.cautelar_qty * r.unit_cautelar), 0) AS cautelar_total_value,
             COALESCE(SUM(r.pesquisa_qty * r.unit_pesquisa), 0) AS pesquisa_total_value
@@ -440,7 +464,8 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             "month_title": row["month_title"],
             "record_count": row["record_count"],
             "total_value": row["total_value"],
-            "transferencia_total_value": row["transferencia_total_value"],
+            "transferencia_total_value": row["transferencia_total_value"] + row["caminhao_transferencia_total_value"],
+            "caminhao_transferencia_total_value": row["caminhao_transferencia_total_value"],
             "combo_transferencia_total_value": row["combo_transferencia_total_value"],
             "cautelar_total_value": row["cautelar_total_value"],
             "pesquisa_total_value": row["pesquisa_total_value"],
@@ -470,6 +495,7 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
             id,
             partner_name,
             (transferencia_qty * unit_transferencia) AS transferencia_total,
+            (caminhao_transferencia_qty * unit_caminhao_transferencia) AS caminhao_transferencia_total,
             (combo_transferencia_qty * unit_combo_transferencia) AS combo_total,
             (cautelar_qty * unit_cautelar) AS cautelar_total,
             (pesquisa_qty * unit_pesquisa) AS pesquisa_total,
@@ -487,25 +513,33 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
             "month_title": month_title,
             "has_data": False,
             "pie": [],
+            "quantity": [],
             "line": [],
         }
 
-    cumulative_total = 0.0
     line_data: list[dict[str, Any]] = []
     for index, row in enumerate(rows, start=1):
-        cumulative_total += row["total_value"]
         line_data.append(
             {
-                "label": f"{index}. {row['partner_name']}",
-                "value": round(cumulative_total, 2),
+                "label": f"Vistoria {index}",
+                "partner_name": row["partner_name"],
+                "value": round(row["total_value"], 2),
             }
         )
 
     pie_data = [
         {"label": "Transferencia", "value": summary["transferencia_total_value"]},
+        {"label": "Transf. Caminhao", "value": summary["caminhao_transferencia_total_value"]},
         {"label": "Transf. de Combo", "value": summary["combo_transferencia_total_value"]},
         {"label": "Cautelar", "value": summary["cautelar_total_value"]},
         {"label": "Pesquisa", "value": summary["pesquisa_total_value"]},
+    ]
+    quantity_data = [
+        {"label": "Transferencia", "value": summary["transferencia_qty"]},
+        {"label": "Transf. Caminhao", "value": summary["caminhao_transferencia_qty"]},
+        {"label": "Transf. de Combo", "value": summary["combo_transferencia_qty"]},
+        {"label": "Cautelar", "value": summary["cautelar_qty"]},
+        {"label": "Pesquisa", "value": summary["pesquisa_qty"]},
     ]
 
     return {
@@ -513,6 +547,7 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
         "month_title": month_title,
         "has_data": True,
         "pie": pie_data,
+        "quantity": quantity_data,
         "line": line_data,
     }
 
@@ -523,7 +558,7 @@ def get_client_history(connection: sqlite3.Connection, partner_name: str) -> dic
         SELECT
             m.month_key,
             m.month_title,
-            COALESCE(SUM(r.transferencia_qty + r.combo_transferencia_qty + r.cautelar_qty + r.pesquisa_qty), 0) AS vistoria_count,
+            COALESCE(SUM(r.transferencia_qty + r.caminhao_transferencia_qty + r.combo_transferencia_qty + r.cautelar_qty + r.pesquisa_qty), 0) AS vistoria_count,
             COALESCE(SUM(r.total_value), 0) AS total_value
         FROM months m
         JOIN records r ON r.month_key = m.month_key
@@ -555,10 +590,17 @@ def build_month_metrics(connection: sqlite3.Connection, month_key: str) -> dict[
         "month_key": month_key,
         "month_title": get_month_title(connection, month_key),
         "total_value": summary["total_value"],
-        "transferencia_total_value": summary["transferencia_total_value"],
+        "transferencia_total_value": summary["transferencia_group_total_value"],
+        "caminhao_transferencia_total_value": summary["caminhao_transferencia_total_value"],
         "combo_transferencia_total_value": summary["combo_transferencia_total_value"],
         "cautelar_total_value": summary["cautelar_total_value"],
         "pesquisa_total_value": summary["pesquisa_total_value"],
+        "transferencia_qty": summary["transferencia_qty"],
+        "caminhao_transferencia_qty": summary["caminhao_transferencia_qty"],
+        "combo_transferencia_qty": summary["combo_transferencia_qty"],
+        "cautelar_qty": summary["cautelar_qty"],
+        "pesquisa_qty": summary["pesquisa_qty"],
+        "total_operations": summary["total_operations"],
     }
 
 
@@ -580,9 +622,16 @@ def compare_two_months(connection: sqlite3.Connection, month_key_a: str, month_k
     keys = [
         "total_value",
         "transferencia_total_value",
+        "caminhao_transferencia_total_value",
         "combo_transferencia_total_value",
         "cautelar_total_value",
         "pesquisa_total_value",
+        "total_operations",
+        "transferencia_qty",
+        "caminhao_transferencia_qty",
+        "combo_transferencia_qty",
+        "cautelar_qty",
+        "pesquisa_qty",
     ]
     deltas = {key: calculate_delta(second[key], first[key]) for key in keys}
     return {"first": first, "second": second, "delta": deltas}
@@ -600,7 +649,7 @@ def get_client_ranking(connection: sqlite3.Connection, month_key: str | None) ->
         SELECT
             partner_name,
             COALESCE(SUM(total_value), 0) AS total_value,
-            COALESCE(SUM(transferencia_qty + combo_transferencia_qty + cautelar_qty + pesquisa_qty), 0) AS vistoria_count
+            COALESCE(SUM(transferencia_qty + caminhao_transferencia_qty + combo_transferencia_qty + cautelar_qty + pesquisa_qty), 0) AS vistoria_count
         FROM records
         {condition}
         GROUP BY partner_name
@@ -681,7 +730,7 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     header_fill = PatternFill("solid", fgColor="D4AF37")
     header_font = Font(bold=True, color="0E2A47")
 
-    sheet.merge_cells("A1:J1")
+    sheet.merge_cells("A1:L1")
     sheet["A1"] = f"Relatorio Mensal - {report['month_title']}"
     sheet["A1"].fill = title_fill
     sheet["A1"].font = title_font
@@ -690,7 +739,8 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     summary = report["summary"]
     summary_rows = [
         ("Valor total", summary["total_value"]),
-        ("Total Transferencia", summary["transferencia_total_value"]),
+        ("Total Transferencia", summary["transferencia_group_total_value"]),
+        ("Total Transf. Caminhao", summary["caminhao_transferencia_total_value"]),
         ("Total Transf. de Combo", summary["combo_transferencia_total_value"]),
         ("Total Cautelar", summary["cautelar_total_value"]),
         ("Total Pesquisa", summary["pesquisa_total_value"]),
@@ -710,10 +760,12 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     headers = [
         "Parceiro",
         "Transfer.",
+        "Transf. Caminhao",
         "Transf. de Combo",
         "Cautelar",
         "Pesquisa",
         "Vlr. Transfer.",
+        "Vlr. Caminhao",
         "Vlr. Combo",
         "Vlr. Cautelar",
         "Vlr. Pesquisa",
@@ -729,10 +781,12 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
         values = [
             row["partner_name"],
             row["transferencia_qty"],
+            row["caminhao_transferencia_qty"],
             row["combo_transferencia_qty"],
             row["cautelar_qty"],
             row["pesquisa_qty"],
             row["unit_transferencia"],
+            row["unit_caminhao_transferencia"],
             row["unit_combo_transferencia"],
             row["unit_cautelar"],
             row["unit_pesquisa"],
@@ -741,7 +795,20 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
         for col_index, value in enumerate(values, start=1):
             sheet.cell(row=current_row, column=col_index, value=value)
 
-    for column_letter, width in {"A": 28, "B": 12, "C": 18, "D": 12, "E": 12, "F": 15, "G": 15, "H": 15, "I": 15, "J": 15}.items():
+    for column_letter, width in {
+        "A": 28,
+        "B": 12,
+        "C": 18,
+        "D": 18,
+        "E": 12,
+        "F": 12,
+        "G": 15,
+        "H": 15,
+        "I": 15,
+        "J": 15,
+        "K": 15,
+        "L": 15,
+    }.items():
         sheet.column_dimensions[column_letter].width = width
 
     buffer = io.BytesIO()
@@ -767,7 +834,8 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
     summary_data = [
         ["Metrica", "Valor"],
         ["Valor total", f"R$ {summary['total_value']:.2f}"],
-        ["Total Transferencia", f"R$ {summary['transferencia_total_value']:.2f}"],
+        ["Total Transferencia", f"R$ {summary['transferencia_group_total_value']:.2f}"],
+        ["Total Transf. Caminhao", f"R$ {summary['caminhao_transferencia_total_value']:.2f}"],
         ["Total Transf. de Combo", f"R$ {summary['combo_transferencia_total_value']:.2f}"],
         ["Total Cautelar", f"R$ {summary['cautelar_total_value']:.2f}"],
         ["Total Pesquisa", f"R$ {summary['pesquisa_total_value']:.2f}"],
@@ -789,10 +857,12 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
     table_data = [[
         "Parceiro",
         "Transfer.",
+        "Caminhao",
         "Combo",
         "Cautelar",
         "Pesquisa",
         "Vlr. Transfer.",
+        "Vlr. Caminhao",
         "Vlr. Combo",
         "Vlr. Cautelar",
         "Vlr. Pesquisa",
@@ -803,10 +873,12 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
             [
                 row["partner_name"],
                 row["transferencia_qty"],
+                row["caminhao_transferencia_qty"],
                 row["combo_transferencia_qty"],
                 row["cautelar_qty"],
                 row["pesquisa_qty"],
                 f"R$ {row['unit_transferencia']:.2f}",
+                f"R$ {row['unit_caminhao_transferencia']:.2f}",
                 f"R$ {row['unit_combo_transferencia']:.2f}",
                 f"R$ {row['unit_cautelar']:.2f}",
                 f"R$ {row['unit_pesquisa']:.2f}",
@@ -816,7 +888,20 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
 
     table = Table(
         table_data,
-        colWidths=[45 * mm, 16 * mm, 19 * mm, 16 * mm, 16 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm],
+        colWidths=[
+            39 * mm,
+            14 * mm,
+            16 * mm,
+            16 * mm,
+            14 * mm,
+            14 * mm,
+            19 * mm,
+            19 * mm,
+            19 * mm,
+            19 * mm,
+            19 * mm,
+            19 * mm,
+        ],
         repeatRows=1,
     )
     table.setStyle(
@@ -865,10 +950,12 @@ def init_db() -> None:
                 period_sort INTEGER NOT NULL DEFAULT 99,
                 partner_name TEXT NOT NULL,
                 transferencia_qty INTEGER NOT NULL DEFAULT 0,
+                caminhao_transferencia_qty INTEGER NOT NULL DEFAULT 0,
                 combo_transferencia_qty INTEGER NOT NULL DEFAULT 0,
                 cautelar_qty INTEGER NOT NULL DEFAULT 0,
                 pesquisa_qty INTEGER NOT NULL DEFAULT 0,
                 unit_transferencia REAL NOT NULL DEFAULT 0,
+                unit_caminhao_transferencia REAL NOT NULL DEFAULT 0,
                 unit_combo_transferencia REAL NOT NULL DEFAULT 0,
                 unit_cautelar REAL NOT NULL DEFAULT 0,
                 unit_pesquisa REAL NOT NULL DEFAULT 0,
@@ -886,6 +973,10 @@ def init_db() -> None:
             connection.execute("ALTER TABLE records ADD COLUMN combo_transferencia_qty INTEGER NOT NULL DEFAULT 0")
         if "unit_combo_transferencia" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN unit_combo_transferencia REAL NOT NULL DEFAULT 0")
+        if "caminhao_transferencia_qty" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN caminhao_transferencia_qty INTEGER NOT NULL DEFAULT 0")
+        if "unit_caminhao_transferencia" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN unit_caminhao_transferencia REAL NOT NULL DEFAULT 0")
 
         connection.executescript(
             """
@@ -914,15 +1005,17 @@ def init_db() -> None:
                     period_sort,
                     partner_name,
                     transferencia_qty,
+                    caminhao_transferencia_qty,
                     combo_transferencia_qty,
                     cautelar_qty,
                     pesquisa_qty,
                     unit_transferencia,
+                    unit_caminhao_transferencia,
                     unit_combo_transferencia,
                     unit_cautelar,
                     unit_pesquisa,
                     total_value
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -933,9 +1026,11 @@ def init_db() -> None:
                         item["partner_name"],
                         item["transferencia_qty"],
                         0,
+                        0,
                         item["cautelar_qty"],
                         item["pesquisa_qty"],
                         item["unit_transferencia"],
+                        0,
                         0,
                         item["unit_cautelar"],
                         item["unit_pesquisa"],
@@ -1184,26 +1279,30 @@ def create_record():
                 period_sort,
                 partner_name,
                 transferencia_qty,
+                caminhao_transferencia_qty,
                 combo_transferencia_qty,
                 cautelar_qty,
                 pesquisa_qty,
                 unit_transferencia,
+                unit_caminhao_transferencia,
                 unit_combo_transferencia,
                 unit_cautelar,
                 unit_pesquisa,
                 total_value,
                 updated_at
-            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
             (
                 record["month_key"],
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["caminhao_transferencia_qty"],
                 record["combo_transferencia_qty"],
                 record["cautelar_qty"],
                 record["pesquisa_qty"],
                 record["unit_transferencia"],
+                record["unit_caminhao_transferencia"],
                 record["unit_combo_transferencia"],
                 record["unit_cautelar"],
                 record["unit_pesquisa"],
@@ -1238,10 +1337,12 @@ def update_record(record_id: int):
                 period_label = ?,
                 partner_name = ?,
                 transferencia_qty = ?,
+                caminhao_transferencia_qty = ?,
                 combo_transferencia_qty = ?,
                 cautelar_qty = ?,
                 pesquisa_qty = ?,
                 unit_transferencia = ?,
+                unit_caminhao_transferencia = ?,
                 unit_combo_transferencia = ?,
                 unit_cautelar = ?,
                 unit_pesquisa = ?,
@@ -1254,10 +1355,12 @@ def update_record(record_id: int):
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["caminhao_transferencia_qty"],
                 record["combo_transferencia_qty"],
                 record["cautelar_qty"],
                 record["pesquisa_qty"],
                 record["unit_transferencia"],
+                record["unit_caminhao_transferencia"],
                 record["unit_combo_transferencia"],
                 record["unit_cautelar"],
                 record["unit_pesquisa"],

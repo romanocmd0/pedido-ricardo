@@ -3,9 +3,12 @@ const comparisonState = {
   clients: [],
   selectedMonthKey: "",
   pieChart: null,
+  quantityChart: null,
   lineChart: null,
   clientVisitsChart: null,
   clientValuesChart: null,
+  monthValuesCompareChart: null,
+  monthQuantityCompareChart: null,
 };
 
 function formatCurrency(value) {
@@ -76,7 +79,7 @@ function buildPieChart(target, labels, values) {
       datasets: [
         {
           data: values,
-          backgroundColor: ["#d4af37", "#8cc7ff", "#4fd3a7", "#f59f70"],
+          backgroundColor: ["#d4af37", "#8cc7ff", "#f0d777", "#4fd3a7", "#f59f70"],
         },
       ],
     },
@@ -94,7 +97,7 @@ function renderComparisonTable(months) {
   counter.textContent = `${months.length}`;
 
   if (!months.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum dado disponivel para comparacao.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum dado disponivel para comparacao.</td></tr>';
     return;
   }
 
@@ -106,6 +109,7 @@ function renderComparisonTable(months) {
       <td>${month.month_title}</td>
       <td>${formatCurrency(month.total_value)}</td>
       <td>${formatCurrency(month.transferencia_total_value)}</td>
+      <td>${formatCurrency(month.caminhao_transferencia_total_value)}</td>
       <td>${formatCurrency(month.combo_transferencia_total_value)}</td>
       <td>${formatCurrency(month.cautelar_total_value)}</td>
       <td>${formatCurrency(month.pesquisa_total_value)}</td>
@@ -193,12 +197,18 @@ async function loadMonthCharts(monthKey) {
       comparisonState.lineChart.destroy();
       comparisonState.lineChart = null;
     }
+    if (comparisonState.quantityChart) {
+      comparisonState.quantityChart.destroy();
+      comparisonState.quantityChart = null;
+    }
     setCanvasState("#pie-chart-canvas", "#pie-chart-empty", false, "Sem dados");
+    setCanvasState("#quantity-chart-canvas", "#quantity-chart-empty", false, "Sem dados");
     setCanvasState("#line-chart-canvas", "#line-chart-empty", false, "Sem dados");
     return;
   }
 
   setCanvasState("#pie-chart-canvas", "#pie-chart-empty", true);
+  setCanvasState("#quantity-chart-canvas", "#quantity-chart-empty", true);
   setCanvasState("#line-chart-canvas", "#line-chart-empty", true);
 
   comparisonState.pieChart = buildPieChart(
@@ -210,6 +220,15 @@ async function loadMonthCharts(monthKey) {
     data.pie.map((item) => item.value),
   );
 
+  comparisonState.quantityChart = buildPieChart(
+    {
+      context: document.querySelector("#quantity-chart-canvas"),
+      chart: comparisonState.quantityChart,
+    },
+    data.quantity.map((item) => item.label),
+    data.quantity.map((item) => item.value),
+  );
+
   comparisonState.lineChart = buildLineChart(
     {
       context: document.querySelector("#line-chart-canvas"),
@@ -218,11 +237,11 @@ async function loadMonthCharts(monthKey) {
     data.line.map((item) => item.label),
     [
       {
-        label: "Evolucao acumulada",
+        label: "Valor por vistoria",
         data: data.line.map((item) => item.value),
         borderColor: "#8cc7ff",
         backgroundColor: "rgba(140,199,255,0.18)",
-        fill: true,
+        fill: false,
         tension: 0.25,
       },
     ],
@@ -315,6 +334,7 @@ async function compareSelectedMonths() {
   const metrics = [
     ["Total geral", "total_value"],
     ["Transferencia", "transferencia_total_value"],
+    ["Transf. Caminhao", "caminhao_transferencia_total_value"],
     ["Transf. de Combo", "combo_transferencia_total_value"],
     ["Cautelar", "cautelar_total_value"],
     ["Pesquisa", "pesquisa_total_value"],
@@ -333,6 +353,69 @@ async function compareSelectedMonths() {
       `;
     })
     .join("");
+
+  const valueMetrics = [
+    ["Total geral", "total_value"],
+    ["Transferencia", "transferencia_total_value"],
+    ["Transf. Caminhao", "caminhao_transferencia_total_value"],
+    ["Transf. Combo", "combo_transferencia_total_value"],
+    ["Cautelar", "cautelar_total_value"],
+    ["Pesquisa", "pesquisa_total_value"],
+  ];
+  const quantityMetrics = [
+    ["Transferencia", "transferencia_qty"],
+    ["Transf. Caminhao", "caminhao_transferencia_qty"],
+    ["Transf. Combo", "combo_transferencia_qty"],
+    ["Cautelar", "cautelar_qty"],
+    ["Pesquisa", "pesquisa_qty"],
+  ];
+
+  setCanvasState("#month-values-compare-canvas", "#month-values-compare-empty", true);
+  setCanvasState("#month-quantity-compare-canvas", "#month-quantity-compare-empty", true);
+
+  comparisonState.monthValuesCompareChart = buildBarChart(
+    {
+      context: document.querySelector("#month-values-compare-canvas"),
+      chart: comparisonState.monthValuesCompareChart,
+    },
+    valueMetrics.map(([label]) => label),
+    [
+      {
+        label: data.first.month_title,
+        data: valueMetrics.map(([, key]) => data.first[key] || 0),
+        backgroundColor: "#d4af37",
+        borderRadius: 8,
+      },
+      {
+        label: data.second.month_title,
+        data: valueMetrics.map(([, key]) => data.second[key] || 0),
+        backgroundColor: "#8cc7ff",
+        borderRadius: 8,
+      },
+    ],
+  );
+
+  comparisonState.monthQuantityCompareChart = buildBarChart(
+    {
+      context: document.querySelector("#month-quantity-compare-canvas"),
+      chart: comparisonState.monthQuantityCompareChart,
+    },
+    quantityMetrics.map(([label]) => label),
+    [
+      {
+        label: data.first.month_title,
+        data: quantityMetrics.map(([, key]) => data.first[key] || 0),
+        backgroundColor: "#d4af37",
+        borderRadius: 8,
+      },
+      {
+        label: data.second.month_title,
+        data: quantityMetrics.map(([, key]) => data.second[key] || 0),
+        backgroundColor: "#4fd3a7",
+        borderRadius: 8,
+      },
+    ],
+  );
 }
 
 async function loadComparison() {

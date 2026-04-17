@@ -3,6 +3,7 @@ const clientComparisonState = {
   ranking: [],
   evolution: [],
   barChart: null,
+  quantityBarChart: null,
   lineChart: null,
 };
 
@@ -35,6 +36,34 @@ function buildBarChart(labels, values) {
           label: "Valor total",
           data: values,
           backgroundColor: "#d4af37",
+          borderRadius: 8,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#f0d777" } } },
+      scales: {
+        x: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+        y: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+      },
+    },
+  });
+}
+
+function buildQuantityBarChart(labels, values) {
+  const canvas = document.querySelector("#client-quantity-bar-canvas");
+  if (clientComparisonState.quantityBarChart) clientComparisonState.quantityBarChart.destroy();
+  return new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Quantidade de vistorias",
+          data: values,
+          backgroundColor: "#8cc7ff",
           borderRadius: 8,
         },
       ],
@@ -110,17 +139,27 @@ function renderCharts(payload) {
       clientComparisonState.lineChart.destroy();
       clientComparisonState.lineChart = null;
     }
+    if (clientComparisonState.quantityBarChart) {
+      clientComparisonState.quantityBarChart.destroy();
+      clientComparisonState.quantityBarChart = null;
+    }
     setCanvasState("#client-bar-canvas", "#client-bar-empty", false, "Sem dados");
+    setCanvasState("#client-quantity-bar-canvas", "#client-quantity-bar-empty", false, "Sem dados");
     setCanvasState("#client-line-canvas", "#client-line-empty", false, "Sem dados");
     renderRankingTable([]);
     return;
   }
 
   setCanvasState("#client-bar-canvas", "#client-bar-empty", true);
+  setCanvasState("#client-quantity-bar-canvas", "#client-quantity-bar-empty", true);
   renderRankingTable(ranking);
   clientComparisonState.barChart = buildBarChart(
     ranking.slice(0, 10).map((item) => item.partner_name),
     ranking.slice(0, 10).map((item) => item.total_value),
+  );
+  clientComparisonState.quantityBarChart = buildQuantityBarChart(
+    ranking.slice(0, 10).map((item) => item.partner_name),
+    ranking.slice(0, 10).map((item) => item.vistoria_count),
   );
 
   const labels = (payload.evolution || []).map((item) => item.month_title);
