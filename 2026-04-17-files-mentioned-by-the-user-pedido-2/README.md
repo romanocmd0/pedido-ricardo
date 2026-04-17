@@ -1,112 +1,73 @@
-# Sistema Web de Controle Mensal
+# Relatorio Mensal
 
-Este projeto transforma a planilha `Pedido Ricardo.xlsx` em um sistema web simples com:
+Sistema web em Flask para controle mensal de pedidos, com abas por mes, calculos automaticos, edicao inline e exportacao profissional.
 
-- abas por mes;
-- cadastro diario direto no mes ativo;
+## Recursos principais
+
+- navegacao por meses com criacao automatica de meses futuros;
+- cadastro diario por mes;
 - CRUD completo;
-- busca e ordenacao por colunas;
-- calculo automatico de totais;
-- resumo mensal com metricas;
-- persistencia em banco SQLite.
+- edicao inline na tabela;
+- novo campo `Transf. de Combo`;
+- resumo mensal com totais e percentuais;
+- exportacao do mes atual em Excel e PDF;
+- persistencia em SQLite.
 
-## Estrutura atual do banco
+## Estrutura do banco
 
 Tabela `months`
 
-- `month_key`: chave no formato `YYYY-MM`
+- `month_key`: chave `YYYY-MM`
 - `year_number`: ano do mes
 - `month_number`: numero do mes
-- `month_label`: rotulo em caixa alta (`ABRIL`, `MAIO`)
-- `month_title`: titulo amigavel (`Abril 2026`)
+- `month_label`: rotulo em caixa alta
+- `month_title`: titulo amigavel
 
 Tabela `records`
 
-- `id`: identificador do registro
-- `month_key`: mes ao qual o registro pertence
-- `partner_name`: nome do parceiro ou cliente
-- `transferencia_qty`: quantidade de transferencias
-- `cautelar_qty`: quantidade de cautelares
-- `pesquisa_qty`: quantidade de pesquisas
-- `unit_transferencia`: valor unitario de transferencia
-- `unit_cautelar`: valor unitario de cautelar
-- `unit_pesquisa`: valor unitario de pesquisa
-- `total_value`: total calculado automaticamente
-- `created_at` / `updated_at`: auditoria basica
+- `partner_name`
+- `transferencia_qty`
+- `combo_transferencia_qty`
+- `cautelar_qty`
+- `pesquisa_qty`
+- `unit_transferencia`
+- `unit_combo_transferencia`
+- `unit_cautelar`
+- `unit_pesquisa`
+- `total_value`
 
-## Como os dados antigos foram adaptados
+## Exportacao
 
-- Os dados historicos da planilha foram importados para `records`.
-- Os meses antigos foram convertidos para chaves mensais em `months`.
-- O sistema cria automaticamente os meses seguintes, mesmo sem registros.
-- Meses novos comecam vazios e aparecem como abas normalmente.
+Rotas disponiveis:
 
-## Funcionalidades principais
+- `/api/export/<month_key>.xlsx`
+- `/api/export/<month_key>.pdf`
 
-- navegar entre meses usando abas no topo;
-- registrar dados manualmente no mes selecionado;
-- editar e excluir registros existentes;
-- atualizar totais automaticamente no formulario e no resumo do mes;
-- mostrar valor total ao lado da busca;
-- exibir quantidade e percentual de transferencias, cautelares e pesquisas.
+Os arquivos exportam:
+
+- todos os registros do mes atual;
+- valor total;
+- totais por tipo;
+- percentuais mensais.
 
 ## Como rodar localmente
 
-Requisitos:
-
-- Python 3.11+ instalado
-- `pip` disponivel
-
-Passos:
-
-1. Abra um terminal na pasta do projeto.
-2. Crie o ambiente virtual:
-
 ```powershell
 python -m venv .venv
-```
-
-3. Ative o ambiente:
-
-```powershell
 .venv\Scripts\Activate.ps1
-```
-
-4. Instale as dependencias:
-
-```powershell
 pip install -r requirements.txt
-```
-
-5. Rode a aplicacao:
-
-```powershell
 python app.py
 ```
 
-6. Abra no navegador:
+Abra:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-## Deploy
+## Dependencias principais
 
-Para publicar no Railway, siga o passo a passo em `DEPLOY_RAILWAY.md`.
-
-## Estrutura do projeto
-
-```text
-app.py
-schema.sql
-requirements.txt
-README.md
-DEPLOY_RAILWAY.md
-data/
-  seed_data.json
-templates/
-  index.html
-static/
-  styles.css
-  app.js
-```
+- Flask
+- gunicorn
+- openpyxl
+- reportlab

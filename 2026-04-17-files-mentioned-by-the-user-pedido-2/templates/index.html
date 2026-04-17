@@ -3,18 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sistema de Pedidos</title>
+    <title>Relatorio Mensal</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
   <body>
     <main class="layout">
       <section class="hero">
         <div>
-          <p class="eyebrow">Pedido Ricardo</p>
-          <h1>Controle mensal com abas e resumo automatico</h1>
+          <p class="eyebrow">Relatorio Mensal</p>
+          <h1>Controle mensal com resumo, exportacao e edicao rapida</h1>
           <p class="hero-copy">
-            Trabalhe mes a mes, lance os registros do dia a dia direto na aba ativa e acompanhe
-            os totais sem depender de calculos manuais.
+            Trabalhe mes a mes, acompanhe os totais automaticos e edite os registros direto na
+            tabela sem interromper o fluxo diario.
           </p>
         </div>
         <div class="hero-card">
@@ -50,6 +50,10 @@
             <span class="hero-label">Valor total</span>
             <strong id="header-total-value">R$ 0,00</strong>
           </div>
+          <div class="export-actions">
+            <button id="export-xlsx-button" class="secondary-button" type="button">Exportar Excel</button>
+            <button id="export-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
+          </div>
           <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
         </div>
       </section>
@@ -64,6 +68,11 @@
           <span class="section-tag">Transferencias</span>
           <strong id="summary-transferencia-qty">0</strong>
           <p id="summary-transferencia-pct">0% do total de operacoes</p>
+        </article>
+        <article class="panel stat-card">
+          <span class="section-tag">Transf. de Combo</span>
+          <strong id="summary-combo-transferencia-qty">0</strong>
+          <p id="summary-combo-transferencia-pct">0% do total de operacoes</p>
         </article>
         <article class="panel stat-card">
           <span class="section-tag">Cautelares</span>
@@ -87,15 +96,19 @@
             <button id="new-record-button" class="primary-button" type="button">Novo registro</button>
           </div>
 
+          <div class="inline-hint">Clique em uma linha para editar inline. A linha salva ao sair do campo ou pressionar Enter.</div>
+
           <div class="table-wrapper">
             <table>
               <thead>
                 <tr>
                   <th data-sort="partner_name">Parceiro</th>
                   <th data-sort="transferencia_qty">Transfer.</th>
+                  <th data-sort="combo_transferencia_qty">Transf. Combo</th>
                   <th data-sort="cautelar_qty">Cautelar</th>
                   <th data-sort="pesquisa_qty">Pesquisa</th>
                   <th data-sort="unit_transferencia">Vlr. Transfer.</th>
+                  <th data-sort="unit_combo_transferencia">Vlr. Combo</th>
                   <th data-sort="unit_cautelar">Vlr. Cautelar</th>
                   <th data-sort="unit_pesquisa">Vlr. Pesquisa</th>
                   <th data-sort="total_value">Total</th>
@@ -104,7 +117,7 @@
               </thead>
               <tbody id="records-body">
                 <tr>
-                  <td colspan="9" class="empty-state">Carregando registros...</td>
+                  <td colspan="11" class="empty-state">Carregando registros...</td>
                 </tr>
               </tbody>
             </table>
@@ -128,10 +141,14 @@
               <input id="partner-name" type="text" placeholder="Nome do parceiro" required />
             </label>
 
-            <div class="three-columns">
+            <div class="four-columns">
               <label class="field">
                 <span>Qtd. transferencia</span>
                 <input id="transferencia-qty" type="number" min="0" step="1" value="0" />
+              </label>
+              <label class="field">
+                <span>Qtd. transf. de combo</span>
+                <input id="combo-transferencia-qty" type="number" min="0" step="1" value="0" />
               </label>
               <label class="field">
                 <span>Qtd. cautelar</span>
@@ -143,10 +160,14 @@
               </label>
             </div>
 
-            <div class="three-columns">
+            <div class="four-columns">
               <label class="field">
                 <span>Valor transferencia</span>
                 <input id="unit-transferencia" type="number" min="0" step="0.01" value="160" />
+              </label>
+              <label class="field">
+                <span>Valor transf. de combo</span>
+                <input id="unit-combo-transferencia" type="number" min="0" step="0.01" value="0" />
               </label>
               <label class="field">
                 <span>Valor cautelar</span>

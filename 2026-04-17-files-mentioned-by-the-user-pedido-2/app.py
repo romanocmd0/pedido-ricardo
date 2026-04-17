@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import sqlite3
@@ -8,7 +9,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = BASE_DIR / "data"
@@ -49,9 +58,11 @@ MONTH_TITLES = {
 ALLOWED_SORT_COLUMNS = {
     "partner_name": "partner_name",
     "transferencia_qty": "transferencia_qty",
+    "combo_transferencia_qty": "combo_transferencia_qty",
     "cautelar_qty": "cautelar_qty",
     "pesquisa_qty": "pesquisa_qty",
     "unit_transferencia": "unit_transferencia",
+    "unit_combo_transferencia": "unit_combo_transferencia",
     "unit_cautelar": "unit_cautelar",
     "unit_pesquisa": "unit_pesquisa",
     "total_value": "total_value",
@@ -111,15 +122,6 @@ def shift_month(year_number: int, month_number: int, offset: int) -> tuple[int, 
     return next_year, next_month
 
 
-def calculate_total(record: dict[str, Any]) -> float:
-    return round(
-        (record["transferencia_qty"] * record["unit_transferencia"])
-        + (record["cautelar_qty"] * record["unit_cautelar"])
-        + (record["pesquisa_qty"] * record["unit_pesquisa"]),
-        2,
-    )
-
-
 def to_int(value: Any, field_name: str) -> int:
     if value in (None, ""):
         return 0
@@ -136,6 +138,16 @@ def to_float(value: Any, field_name: str) -> float:
         return float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"O campo '{field_name}' deve ser numerico.") from exc
+
+
+def calculate_total(record: dict[str, Any]) -> float:
+    return round(
+        (record["transferencia_qty"] * record["unit_transferencia"])
+        + (record["combo_transferencia_qty"] * record["unit_combo_transferencia"])
+        + (record["cautelar_qty"] * record["unit_cautelar"])
+        + (record["pesquisa_qty"] * record["unit_pesquisa"]),
+        2,
+    )
 
 
 def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -155,18 +167,28 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "period_label": label_from_month(month_number),
         "partner_name": partner_name,
         "transferencia_qty": to_int(payload.get("transferencia_qty"), "transferencia_qty"),
+        "combo_transferencia_qty": to_int(
+            payload.get("combo_transferencia_qty"),
+            "combo_transferencia_qty",
+        ),
         "cautelar_qty": to_int(payload.get("cautelar_qty"), "cautelar_qty"),
         "pesquisa_qty": to_int(payload.get("pesquisa_qty"), "pesquisa_qty"),
         "unit_transferencia": to_float(payload.get("unit_transferencia"), "unit_transferencia"),
+        "unit_combo_transferencia": to_float(
+            payload.get("unit_combo_transferencia"),
+            "unit_combo_transferencia",
+        ),
         "unit_cautelar": to_float(payload.get("unit_cautelar"), "unit_cautelar"),
         "unit_pesquisa": to_float(payload.get("unit_pesquisa"), "unit_pesquisa"),
     }
 
     for field_name in (
         "transferencia_qty",
+        "combo_transferencia_qty",
         "cautelar_qty",
         "pesquisa_qty",
         "unit_transferencia",
+        "unit_combo_transferencia",
         "unit_cautelar",
         "unit_pesquisa",
     ):
@@ -184,9 +206,11 @@ def serialize_record(row: sqlite3.Row) -> dict[str, Any]:
         "period_label": row["period_label"],
         "partner_name": row["partner_name"],
         "transferencia_qty": row["transferencia_qty"],
+        "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
         "unit_transferencia": row["unit_transferencia"],
+        "unit_combo_transferencia": row["unit_combo_transferencia"],
         "unit_cautelar": row["unit_cautelar"],
         "unit_pesquisa": row["unit_pesquisa"],
         "total_value": row["total_value"],
@@ -291,6 +315,7 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         SELECT
             COALESCE(SUM(total_value), 0) AS total_value,
             COALESCE(SUM(transferencia_qty), 0) AS transferencia_qty,
+            COALESCE(SUM(combo_transferencia_qty), 0) AS combo_transferencia_qty,
             COALESCE(SUM(cautelar_qty), 0) AS cautelar_qty,
             COALESCE(SUM(pesquisa_qty), 0) AS pesquisa_qty,
             COUNT(*) AS record_count
@@ -301,7 +326,10 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
     ).fetchone()
 
     total_operations = (
-        row["transferencia_qty"] + row["cautelar_qty"] + row["pesquisa_qty"]
+        row["transferencia_qty"]
+        + row["combo_transferencia_qty"]
+        + row["cautelar_qty"]
+        + row["pesquisa_qty"]
     )
 
     def percentage(value: int) -> float:
@@ -313,10 +341,12 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         "total_value": row["total_value"],
         "record_count": row["record_count"],
         "transferencia_qty": row["transferencia_qty"],
+        "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
         "total_operations": total_operations,
         "transferencia_pct": percentage(row["transferencia_qty"]),
+        "combo_transferencia_pct": percentage(row["combo_transferencia_qty"]),
         "cautelar_pct": percentage(row["cautelar_qty"]),
         "pesquisa_pct": percentage(row["pesquisa_qty"]),
     }
@@ -361,6 +391,231 @@ def list_months(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     ]
 
 
+def get_month_title(connection: sqlite3.Connection, month_key: str) -> str:
+    row = connection.execute(
+        "SELECT month_title FROM months WHERE month_key = ?",
+        (month_key,),
+    ).fetchone()
+    return row["month_title"] if row else month_key
+
+
+def get_month_report(
+    connection: sqlite3.Connection,
+    month_key: str,
+    search: str = "",
+    sort_by: str = "partner_name",
+    sort_order: str = "ASC",
+) -> dict[str, Any]:
+    conditions = ["month_key = ?"]
+    params: list[Any] = [month_key]
+
+    if search:
+        conditions.append("partner_name LIKE ?")
+        params.append(f"%{search}%")
+
+    query = f"""
+        SELECT *
+        FROM records
+        WHERE {' AND '.join(conditions)}
+        ORDER BY {sort_by} {sort_order}, partner_name ASC, id DESC
+    """
+    rows = connection.execute(query, params).fetchall()
+    summary = summarize_month(connection, month_key)
+    month_title = get_month_title(connection, month_key)
+    return {
+        "records": rows,
+        "summary": summary,
+        "month_title": month_title,
+        "month_key": month_key,
+    }
+
+
+def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Relatorio"
+
+    title_fill = PatternFill("solid", fgColor="8D5A2B")
+    title_font = Font(color="FFFFFF", bold=True, size=13)
+    header_fill = PatternFill("solid", fgColor="F3E7D5")
+    header_font = Font(bold=True, color="6D421C")
+
+    sheet.merge_cells("A1:J1")
+    sheet["A1"] = f"Relatorio Mensal - {report['month_title']}"
+    sheet["A1"].fill = title_fill
+    sheet["A1"].font = title_font
+    sheet["A1"].alignment = Alignment(horizontal="center")
+
+    summary = report["summary"]
+    summary_rows = [
+        ("Valor total", summary["total_value"]),
+        ("Transferencias", summary["transferencia_qty"]),
+        ("Transf. de Combo", summary["combo_transferencia_qty"]),
+        ("Cautelares", summary["cautelar_qty"]),
+        ("Pesquisas", summary["pesquisa_qty"]),
+        ("Percentual Transferencias", f"{summary['transferencia_pct']}%"),
+        ("Percentual Transf. de Combo", f"{summary['combo_transferencia_pct']}%"),
+        ("Percentual Cautelares", f"{summary['cautelar_pct']}%"),
+        ("Percentual Pesquisas", f"{summary['pesquisa_pct']}%"),
+    ]
+
+    current_row = 3
+    for label, value in summary_rows:
+        sheet[f"A{current_row}"] = label
+        sheet[f"B{current_row}"] = value
+        current_row += 1
+
+    current_row += 1
+    headers = [
+        "Parceiro",
+        "Transfer.",
+        "Transf. de Combo",
+        "Cautelar",
+        "Pesquisa",
+        "Vlr. Transfer.",
+        "Vlr. Combo",
+        "Vlr. Cautelar",
+        "Vlr. Pesquisa",
+        "Total",
+    ]
+    for col_index, header in enumerate(headers, start=1):
+        cell = sheet.cell(row=current_row, column=col_index, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+
+    for row in report["records"]:
+        current_row += 1
+        values = [
+            row["partner_name"],
+            row["transferencia_qty"],
+            row["combo_transferencia_qty"],
+            row["cautelar_qty"],
+            row["pesquisa_qty"],
+            row["unit_transferencia"],
+            row["unit_combo_transferencia"],
+            row["unit_cautelar"],
+            row["unit_pesquisa"],
+            row["total_value"],
+        ]
+        for col_index, value in enumerate(values, start=1):
+            sheet.cell(row=current_row, column=col_index, value=value)
+
+    for column_letter, width in {
+        "A": 28,
+        "B": 12,
+        "C": 18,
+        "D": 12,
+        "E": 12,
+        "F": 15,
+        "G": 15,
+        "H": 15,
+        "I": 15,
+        "J": 15,
+    }.items():
+        sheet.column_dimensions[column_letter].width = width
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
+    buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=10 * mm,
+        rightMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph(f"Relatorio Mensal - {report['month_title']}", styles["Title"]),
+        Spacer(1, 8),
+    ]
+
+    summary = report["summary"]
+    summary_data = [
+        ["Metrica", "Valor"],
+        ["Valor total", f"R$ {summary['total_value']:.2f}"],
+        ["Transferencias", summary["transferencia_qty"]],
+        ["Transf. de Combo", summary["combo_transferencia_qty"]],
+        ["Cautelares", summary["cautelar_qty"]],
+        ["Pesquisas", summary["pesquisa_qty"]],
+        ["% Transferencias", f"{summary['transferencia_pct']}%"],
+        ["% Transf. de Combo", f"{summary['combo_transferencia_pct']}%"],
+        ["% Cautelares", f"{summary['cautelar_pct']}%"],
+        ["% Pesquisas", f"{summary['pesquisa_pct']}%"],
+    ]
+    summary_table = Table(summary_data, colWidths=[70 * mm, 45 * mm])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#8D5A2B")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D6B98E")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FBF4E7")),
+            ]
+        )
+    )
+    story.extend([summary_table, Spacer(1, 10)])
+
+    header = [
+        "Parceiro",
+        "Transfer.",
+        "Combo",
+        "Cautelar",
+        "Pesquisa",
+        "Vlr. Transfer.",
+        "Vlr. Combo",
+        "Vlr. Cautelar",
+        "Vlr. Pesquisa",
+        "Total",
+    ]
+    table_data = [header]
+    for row in report["records"]:
+        table_data.append(
+            [
+                row["partner_name"],
+                row["transferencia_qty"],
+                row["combo_transferencia_qty"],
+                row["cautelar_qty"],
+                row["pesquisa_qty"],
+                f"R$ {row['unit_transferencia']:.2f}",
+                f"R$ {row['unit_combo_transferencia']:.2f}",
+                f"R$ {row['unit_cautelar']:.2f}",
+                f"R$ {row['unit_pesquisa']:.2f}",
+                f"R$ {row['total_value']:.2f}",
+            ]
+        )
+
+    table = Table(
+        table_data,
+        colWidths=[45 * mm, 16 * mm, 19 * mm, 16 * mm, 16 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm],
+        repeatRows=1,
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#8D5A2B")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D6B98E")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FFF9F1")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(table)
+    document.build(story)
+    buffer.seek(0)
+    return buffer
+
+
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_db() as connection:
@@ -383,9 +638,11 @@ def init_db() -> None:
                 period_sort INTEGER NOT NULL DEFAULT 99,
                 partner_name TEXT NOT NULL,
                 transferencia_qty INTEGER NOT NULL DEFAULT 0,
+                combo_transferencia_qty INTEGER NOT NULL DEFAULT 0,
                 cautelar_qty INTEGER NOT NULL DEFAULT 0,
                 pesquisa_qty INTEGER NOT NULL DEFAULT 0,
                 unit_transferencia REAL NOT NULL DEFAULT 0,
+                unit_combo_transferencia REAL NOT NULL DEFAULT 0,
                 unit_cautelar REAL NOT NULL DEFAULT 0,
                 unit_pesquisa REAL NOT NULL DEFAULT 0,
                 total_value REAL NOT NULL DEFAULT 0,
@@ -400,6 +657,14 @@ def init_db() -> None:
         }
         if "month_key" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN month_key TEXT")
+        if "combo_transferencia_qty" not in columns:
+            connection.execute(
+                "ALTER TABLE records ADD COLUMN combo_transferencia_qty INTEGER NOT NULL DEFAULT 0"
+            )
+        if "unit_combo_transferencia" not in columns:
+            connection.execute(
+                "ALTER TABLE records ADD COLUMN unit_combo_transferencia REAL NOT NULL DEFAULT 0"
+            )
 
         connection.executescript(
             """
@@ -426,13 +691,15 @@ def init_db() -> None:
                     period_sort,
                     partner_name,
                     transferencia_qty,
+                    combo_transferencia_qty,
                     cautelar_qty,
                     pesquisa_qty,
                     unit_transferencia,
+                    unit_combo_transferencia,
                     unit_cautelar,
                     unit_pesquisa,
                     total_value
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -442,9 +709,11 @@ def init_db() -> None:
                         0,
                         item["partner_name"],
                         item["transferencia_qty"],
+                        0,
                         item["cautelar_qty"],
                         item["pesquisa_qty"],
                         item["unit_transferencia"],
+                        0,
                         item["unit_cautelar"],
                         item["unit_pesquisa"],
                         item["total_value"],
@@ -522,33 +791,58 @@ def list_records():
     with get_db() as connection:
         ensure_month(connection, year_number, month_number)
         ensure_future_months(connection)
-
-        conditions = ["month_key = ?"]
-        params: list[Any] = [month_key]
-
-        if search:
-            conditions.append("partner_name LIKE ?")
-            params.append(f"%{search}%")
-
-        query = f"""
-            SELECT *
-            FROM records
-            WHERE {' AND '.join(conditions)}
-            ORDER BY {sort_by} {sort_order}, partner_name ASC, id DESC
-        """
-        rows = connection.execute(query, params).fetchall()
+        report = get_month_report(connection, month_key, search, sort_by, sort_order)
         months = list_months(connection)
-        summary = summarize_month(connection, month_key)
         active_month = next((item for item in months if item["month_key"] == month_key), None)
 
     return jsonify(
         {
-            "records": [serialize_record(row) for row in rows],
+            "records": [serialize_record(row) for row in report["records"]],
             "months": months,
-            "summary": summary,
+            "summary": report["summary"],
             "active_month": active_month,
-            "meta": {"total_records": len(rows)},
+            "meta": {"total_records": len(report["records"])},
         }
+    )
+
+
+@app.get("/api/export/<string:month_key>.xlsx")
+def export_month_xlsx(month_key: str):
+    try:
+        year_number, month_number = parse_month_key(month_key)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        ensure_month(connection, year_number, month_number)
+        report = get_month_report(connection, month_key)
+
+    buffer = build_excel_report(report)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"relatorio-mensal-{month_key}.xlsx",
+    )
+
+
+@app.get("/api/export/<string:month_key>.pdf")
+def export_month_pdf(month_key: str):
+    try:
+        year_number, month_number = parse_month_key(month_key)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        ensure_month(connection, year_number, month_number)
+        report = get_month_report(connection, month_key)
+
+    buffer = build_pdf_report(report)
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"relatorio-mensal-{month_key}.pdf",
     )
 
 
@@ -571,23 +865,27 @@ def create_record():
                 period_sort,
                 partner_name,
                 transferencia_qty,
+                combo_transferencia_qty,
                 cautelar_qty,
                 pesquisa_qty,
                 unit_transferencia,
+                unit_combo_transferencia,
                 unit_cautelar,
                 unit_pesquisa,
                 total_value,
                 updated_at
-            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
             (
                 record["month_key"],
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["combo_transferencia_qty"],
                 record["cautelar_qty"],
                 record["pesquisa_qty"],
                 record["unit_transferencia"],
+                record["unit_combo_transferencia"],
                 record["unit_cautelar"],
                 record["unit_pesquisa"],
                 record["total_value"],
@@ -622,9 +920,11 @@ def update_record(record_id: int):
                 period_label = ?,
                 partner_name = ?,
                 transferencia_qty = ?,
+                combo_transferencia_qty = ?,
                 cautelar_qty = ?,
                 pesquisa_qty = ?,
                 unit_transferencia = ?,
+                unit_combo_transferencia = ?,
                 unit_cautelar = ?,
                 unit_pesquisa = ?,
                 total_value = ?,
@@ -636,9 +936,11 @@ def update_record(record_id: int):
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["combo_transferencia_qty"],
                 record["cautelar_qty"],
                 record["pesquisa_qty"],
                 record["unit_transferencia"],
+                record["unit_combo_transferencia"],
                 record["unit_cautelar"],
                 record["unit_pesquisa"],
                 record["total_value"],

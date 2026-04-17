@@ -5,12 +5,15 @@ const state = {
   sortBy: "partner_name",
   sortOrder: "asc",
   summary: null,
+  editingRowId: null,
 };
 
 const elements = {
   monthTabs: document.querySelector("#month-tabs"),
   searchInput: document.querySelector("#search-input"),
   refreshButton: document.querySelector("#refresh-button"),
+  exportXlsxButton: document.querySelector("#export-xlsx-button"),
+  exportPdfButton: document.querySelector("#export-pdf-button"),
   newRecordButton: document.querySelector("#new-record-button"),
   recordsBody: document.querySelector("#records-body"),
   recordCount: document.querySelector("#record-count"),
@@ -20,6 +23,8 @@ const elements = {
   summaryTotalValue: document.querySelector("#summary-total-value"),
   summaryTransferenciaQty: document.querySelector("#summary-transferencia-qty"),
   summaryTransferenciaPct: document.querySelector("#summary-transferencia-pct"),
+  summaryComboTransferenciaQty: document.querySelector("#summary-combo-transferencia-qty"),
+  summaryComboTransferenciaPct: document.querySelector("#summary-combo-transferencia-pct"),
   summaryCautelarQty: document.querySelector("#summary-cautelar-qty"),
   summaryCautelarPct: document.querySelector("#summary-cautelar-pct"),
   summaryPesquisaQty: document.querySelector("#summary-pesquisa-qty"),
@@ -30,9 +35,11 @@ const elements = {
   recordId: document.querySelector("#record-id"),
   partnerName: document.querySelector("#partner-name"),
   transferenciaQty: document.querySelector("#transferencia-qty"),
+  comboTransferenciaQty: document.querySelector("#combo-transferencia-qty"),
   cautelarQty: document.querySelector("#cautelar-qty"),
   pesquisaQty: document.querySelector("#pesquisa-qty"),
   unitTransferencia: document.querySelector("#unit-transferencia"),
+  unitComboTransferencia: document.querySelector("#unit-combo-transferencia"),
   unitCautelar: document.querySelector("#unit-cautelar"),
   unitPesquisa: document.querySelector("#unit-pesquisa"),
   calculatedTotal: document.querySelector("#calculated-total"),
@@ -53,22 +60,49 @@ function formatPercent(value) {
   })}% do total de operacoes`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function currentPayload() {
   return {
     month_key: state.activeMonthKey,
     partner_name: elements.partnerName.value.trim(),
     transferencia_qty: Number(elements.transferenciaQty.value || 0),
+    combo_transferencia_qty: Number(elements.comboTransferenciaQty.value || 0),
     cautelar_qty: Number(elements.cautelarQty.value || 0),
     pesquisa_qty: Number(elements.pesquisaQty.value || 0),
     unit_transferencia: Number(elements.unitTransferencia.value || 0),
+    unit_combo_transferencia: Number(elements.unitComboTransferencia.value || 0),
     unit_cautelar: Number(elements.unitCautelar.value || 0),
     unit_pesquisa: Number(elements.unitPesquisa.value || 0),
+  };
+}
+
+function recordPayloadFromInputs(row) {
+  return {
+    month_key: state.activeMonthKey,
+    partner_name: row.querySelector('[data-field="partner_name"]').value.trim(),
+    transferencia_qty: Number(row.querySelector('[data-field="transferencia_qty"]').value || 0),
+    combo_transferencia_qty: Number(row.querySelector('[data-field="combo_transferencia_qty"]').value || 0),
+    cautelar_qty: Number(row.querySelector('[data-field="cautelar_qty"]').value || 0),
+    pesquisa_qty: Number(row.querySelector('[data-field="pesquisa_qty"]').value || 0),
+    unit_transferencia: Number(row.querySelector('[data-field="unit_transferencia"]').value || 0),
+    unit_combo_transferencia: Number(row.querySelector('[data-field="unit_combo_transferencia"]').value || 0),
+    unit_cautelar: Number(row.querySelector('[data-field="unit_cautelar"]').value || 0),
+    unit_pesquisa: Number(row.querySelector('[data-field="unit_pesquisa"]').value || 0),
   };
 }
 
 function calculateTotal(payload) {
   return (
     payload.transferencia_qty * payload.unit_transferencia +
+    payload.combo_transferencia_qty * payload.unit_combo_transferencia +
     payload.cautelar_qty * payload.unit_cautelar +
     payload.pesquisa_qty * payload.unit_pesquisa
   );
@@ -87,9 +121,11 @@ function resetForm() {
   elements.recordId.value = "";
   elements.formTitle.textContent = "Novo registro";
   elements.transferenciaQty.value = 0;
+  elements.comboTransferenciaQty.value = 0;
   elements.cautelarQty.value = 0;
   elements.pesquisaQty.value = 0;
   elements.unitTransferencia.value = 160;
+  elements.unitComboTransferencia.value = 0;
   elements.unitCautelar.value = 240;
   elements.unitPesquisa.value = 80;
 
@@ -115,6 +151,7 @@ function renderMonthTabs() {
         return;
       }
       state.activeMonthKey = month.month_key;
+      state.editingRowId = null;
       resetForm();
       await loadRecords();
     });
@@ -128,9 +165,11 @@ function renderSummary() {
   const summary = state.summary || {
     total_value: 0,
     transferencia_qty: 0,
+    combo_transferencia_qty: 0,
     cautelar_qty: 0,
     pesquisa_qty: 0,
     transferencia_pct: 0,
+    combo_transferencia_pct: 0,
     cautelar_pct: 0,
     pesquisa_pct: 0,
     record_count: 0,
@@ -143,43 +182,160 @@ function renderSummary() {
   elements.summaryTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTransferenciaQty.textContent = String(summary.transferencia_qty || 0);
   elements.summaryTransferenciaPct.textContent = formatPercent(summary.transferencia_pct);
+  elements.summaryComboTransferenciaQty.textContent = String(summary.combo_transferencia_qty || 0);
+  elements.summaryComboTransferenciaPct.textContent = formatPercent(summary.combo_transferencia_pct);
   elements.summaryCautelarQty.textContent = String(summary.cautelar_qty || 0);
   elements.summaryCautelarPct.textContent = formatPercent(summary.cautelar_pct);
   elements.summaryPesquisaQty.textContent = String(summary.pesquisa_qty || 0);
   elements.summaryPesquisaPct.textContent = formatPercent(summary.pesquisa_pct);
 }
 
+function renderReadonlyCell(value, field, isCurrency = false) {
+  const display = isCurrency ? formatCurrency(value) : value;
+  return `<td class="editable-cell" data-start-edit="${field}">${display}</td>`;
+}
+
+function renderEditableCell(value, field, type = "number", step = "1") {
+  const safeValue = value ?? 0;
+  const inputType = field === "partner_name" ? "text" : type;
+  return `
+    <td class="editing-cell">
+      <input
+        class="inline-input"
+        data-field="${field}"
+        type="${inputType}"
+        ${inputType === "number" ? `min="0" step="${step}"` : ""}
+        value="${escapeHtml(safeValue)}"
+      />
+    </td>
+  `;
+}
+
+function attachInlineEditing(rowElement, record) {
+  rowElement.querySelectorAll("[data-start-edit]").forEach((cell) => {
+    cell.addEventListener("click", async () => {
+      state.editingRowId = record.id;
+      renderTable();
+      const currentRow = elements.recordsBody.querySelector(`tr[data-row-id="${record.id}"]`);
+      const firstInput = currentRow?.querySelector(".inline-input");
+      firstInput?.focus();
+    });
+  });
+}
+
+async function saveInlineRow(rowElement, recordId) {
+  const payload = recordPayloadFromInputs(rowElement);
+  const response = await fetch(`/api/records/${recordId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel salvar a linha.");
+    return false;
+  }
+
+  state.editingRowId = null;
+  await loadRecords();
+  return true;
+}
+
+function attachEditingEvents(rowElement, recordId) {
+  const inputs = rowElement.querySelectorAll(".inline-input");
+  let isSaving = false;
+  const totalCell = rowElement.querySelector(".inline-total");
+
+  const saveIfNeeded = async () => {
+    if (isSaving) {
+      return;
+    }
+    isSaving = true;
+    await saveInlineRow(rowElement, recordId);
+    isSaving = false;
+  };
+
+  const refreshInlineTotal = () => {
+    if (!totalCell) {
+      return;
+    }
+    totalCell.textContent = formatCurrency(calculateTotal(recordPayloadFromInputs(rowElement)));
+  };
+
+  inputs.forEach((input) => {
+    input.addEventListener("input", refreshInlineTotal);
+    input.addEventListener("keydown", async (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        await saveIfNeeded();
+      }
+      if (event.key === "Escape") {
+        state.editingRowId = null;
+        renderTable();
+      }
+    });
+
+    input.addEventListener("blur", async () => {
+      setTimeout(async () => {
+        const stillInside = rowElement.contains(document.activeElement);
+        if (!stillInside) {
+          await saveIfNeeded();
+        }
+      }, 0);
+    });
+  });
+
+  refreshInlineTotal();
+}
+
 function renderTable() {
   if (!state.records.length) {
     elements.recordsBody.innerHTML =
-      '<tr><td colspan="9" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
+      '<tr><td colspan="11" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
     return;
   }
 
   elements.recordsBody.innerHTML = "";
   state.records.forEach((record) => {
+    const isEditing = state.editingRowId === record.id;
     const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${record.partner_name}</td>
-      <td>${record.transferencia_qty}</td>
-      <td>${record.cautelar_qty}</td>
-      <td>${record.pesquisa_qty}</td>
-      <td>${formatCurrency(record.unit_transferencia)}</td>
-      <td>${formatCurrency(record.unit_cautelar)}</td>
-      <td>${formatCurrency(record.unit_pesquisa)}</td>
-      <td>${formatCurrency(record.total_value)}</td>
-      <td></td>
-    `;
+    row.dataset.rowId = String(record.id);
+
+    if (isEditing) {
+      row.className = "editing-row";
+      row.innerHTML = `
+        ${renderEditableCell(record.partner_name, "partner_name", "text")}
+        ${renderEditableCell(record.transferencia_qty, "transferencia_qty")}
+        ${renderEditableCell(record.combo_transferencia_qty, "combo_transferencia_qty")}
+        ${renderEditableCell(record.cautelar_qty, "cautelar_qty")}
+        ${renderEditableCell(record.pesquisa_qty, "pesquisa_qty")}
+        ${renderEditableCell(record.unit_transferencia, "unit_transferencia", "number", "0.01")}
+        ${renderEditableCell(record.unit_combo_transferencia, "unit_combo_transferencia", "number", "0.01")}
+        ${renderEditableCell(record.unit_cautelar, "unit_cautelar", "number", "0.01")}
+        ${renderEditableCell(record.unit_pesquisa, "unit_pesquisa", "number", "0.01")}
+        <td class="inline-total">${formatCurrency(calculateTotal(recordPayloadFromInlineRecord(record)))}</td>
+        <td></td>
+      `;
+    } else {
+      row.innerHTML = `
+        ${renderReadonlyCell(record.partner_name, "partner_name")}
+        ${renderReadonlyCell(record.transferencia_qty, "transferencia_qty")}
+        ${renderReadonlyCell(record.combo_transferencia_qty, "combo_transferencia_qty")}
+        ${renderReadonlyCell(record.cautelar_qty, "cautelar_qty")}
+        ${renderReadonlyCell(record.pesquisa_qty, "pesquisa_qty")}
+        ${renderReadonlyCell(record.unit_transferencia, "unit_transferencia", true)}
+        ${renderReadonlyCell(record.unit_combo_transferencia, "unit_combo_transferencia", true)}
+        ${renderReadonlyCell(record.unit_cautelar, "unit_cautelar", true)}
+        ${renderReadonlyCell(record.unit_pesquisa, "unit_pesquisa", true)}
+        <td class="editable-cell total-cell" data-start-edit="total_value">${formatCurrency(record.total_value)}</td>
+        <td></td>
+      `;
+    }
 
     const actionsCell = row.querySelector("td:last-child");
     const actionWrap = document.createElement("div");
     actionWrap.className = "actions";
-
-    const editButton = document.createElement("button");
-    editButton.type = "button";
-    editButton.className = "icon-button";
-    editButton.textContent = "Editar";
-    editButton.addEventListener("click", () => fillForm(record));
 
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
@@ -187,10 +343,31 @@ function renderTable() {
     deleteButton.textContent = "Excluir";
     deleteButton.addEventListener("click", () => removeRecord(record.id));
 
-    actionWrap.append(editButton, deleteButton);
+    actionWrap.append(deleteButton);
     actionsCell.appendChild(actionWrap);
     elements.recordsBody.appendChild(row);
+
+    if (isEditing) {
+      attachEditingEvents(row, record.id);
+    } else {
+      attachInlineEditing(row, record);
+    }
   });
+}
+
+function recordPayloadFromInlineRecord(record) {
+  return {
+    month_key: state.activeMonthKey,
+    partner_name: record.partner_name,
+    transferencia_qty: Number(record.transferencia_qty || 0),
+    combo_transferencia_qty: Number(record.combo_transferencia_qty || 0),
+    cautelar_qty: Number(record.cautelar_qty || 0),
+    pesquisa_qty: Number(record.pesquisa_qty || 0),
+    unit_transferencia: Number(record.unit_transferencia || 0),
+    unit_combo_transferencia: Number(record.unit_combo_transferencia || 0),
+    unit_cautelar: Number(record.unit_cautelar || 0),
+    unit_pesquisa: Number(record.unit_pesquisa || 0),
+  };
 }
 
 async function loadRecords() {
@@ -224,20 +401,6 @@ async function loadRecords() {
   renderSummary();
   renderTable();
   resetForm();
-}
-
-function fillForm(record) {
-  elements.formTitle.textContent = `Editando #${record.id}`;
-  elements.recordId.value = record.id;
-  elements.partnerName.value = record.partner_name || "";
-  elements.transferenciaQty.value = record.transferencia_qty ?? 0;
-  elements.cautelarQty.value = record.cautelar_qty ?? 0;
-  elements.pesquisaQty.value = record.pesquisa_qty ?? 0;
-  elements.unitTransferencia.value = record.unit_transferencia ?? 0;
-  elements.unitCautelar.value = record.unit_cautelar ?? 0;
-  elements.unitPesquisa.value = record.unit_pesquisa ?? 0;
-  updateCalculatedTotal();
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function saveRecord(event) {
@@ -294,19 +457,30 @@ function setupSorting() {
   });
 }
 
+function downloadExport(type) {
+  if (!state.activeMonthKey) {
+    return;
+  }
+  window.open(`/api/export/${state.activeMonthKey}.${type}`, "_blank");
+}
+
 function setupEvents() {
   elements.form.addEventListener("submit", saveRecord);
   elements.cancelEditButton.addEventListener("click", resetForm);
   elements.refreshButton.addEventListener("click", loadRecords);
   elements.newRecordButton.addEventListener("click", resetForm);
   elements.searchInput.addEventListener("input", loadRecords);
+  elements.exportXlsxButton.addEventListener("click", () => downloadExport("xlsx"));
+  elements.exportPdfButton.addEventListener("click", () => downloadExport("pdf"));
 
   [
     elements.partnerName,
     elements.transferenciaQty,
+    elements.comboTransferenciaQty,
     elements.cautelarQty,
     elements.pesquisaQty,
     elements.unitTransferencia,
+    elements.unitComboTransferencia,
     elements.unitCautelar,
     elements.unitPesquisa,
   ].forEach((input) => input.addEventListener("input", updateCalculatedTotal));
