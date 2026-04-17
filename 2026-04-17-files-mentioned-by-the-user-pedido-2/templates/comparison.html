@@ -8,6 +8,11 @@
   </head>
   <body>
     <main class="layout">
+      <nav class="top-nav">
+        <a class="nav-button" href="/">Relatorio Mensal</a>
+        <a class="nav-button is-active" href="/comparison">Comparacao de Meses</a>
+      </nav>
+
       <section class="hero">
         <div>
           <p class="eyebrow">Relatorio Mensal</p>
@@ -15,13 +20,24 @@
         </div>
         <div class="hero-card">
           <div>
-            <span class="hero-label">Visao analitica</span>
+            <span class="hero-label">Meses com dados</span>
             <strong id="comparison-month-count">0</strong>
           </div>
           <div>
-            <a class="hero-link" href="/">Voltar para tela principal</a>
+            <span class="hero-label">Mes selecionado</span>
+            <strong id="selected-month-title">Nenhum</strong>
           </div>
         </div>
+      </section>
+
+      <section class="panel tabs-panel">
+        <div class="tabs-header">
+          <div>
+            <p class="section-tag">Dashboard inteligente</p>
+            <h2>Meses com registros</h2>
+          </div>
+        </div>
+        <div id="comparison-month-tabs" class="month-tabs"></div>
       </section>
 
       <section class="comparison-grid">
@@ -29,20 +45,20 @@
           <div class="section-header">
             <div>
               <p class="section-tag">Dashboard</p>
-              <h2>Evolucao dos valores</h2>
+              <h2>Distribuicao do mes</h2>
             </div>
           </div>
-          <div id="evolution-chart" class="chart-surface"></div>
+          <div id="pie-chart" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
         </article>
 
         <article class="panel chart-panel">
           <div class="section-header">
             <div>
               <p class="section-tag">Comparacao</p>
-              <h2>Tipos por mes</h2>
+              <h2>Evolucao dentro do mes</h2>
             </div>
           </div>
-          <div id="types-chart" class="chart-surface"></div>
+          <div id="line-chart" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
         </article>
       </section>
 

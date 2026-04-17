@@ -420,6 +420,7 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
         SELECT
             m.month_key,
             m.month_title,
+            COUNT(r.id) AS record_count,
             COALESCE(SUM(r.total_value), 0) AS total_value,
             COALESCE(SUM(r.transferencia_qty * r.unit_transferencia), 0) AS transferencia_total_value,
             COALESCE(SUM(r.combo_transferencia_qty * r.unit_combo_transferencia), 0) AS combo_transferencia_total_value,
@@ -428,6 +429,7 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
         FROM months m
         LEFT JOIN records r ON r.month_key = m.month_key
         GROUP BY m.month_key, m.month_title, m.year_number, m.month_number
+        HAVING COUNT(r.id) > 0
         ORDER BY m.year_number, m.month_number
         """
     ).fetchall()
@@ -436,6 +438,7 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
         {
             "month_key": row["month_key"],
             "month_title": row["month_title"],
+            "record_count": row["record_count"],
             "total_value": row["total_value"],
             "transferencia_total_value": row["transferencia_total_value"],
             "combo_transferencia_total_value": row["combo_transferencia_total_value"],
@@ -444,6 +447,62 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
+    summary = summarize_month(connection, month_key)
+    month_title = get_month_title(connection, month_key)
+    rows = connection.execute(
+        """
+        SELECT
+            id,
+            partner_name,
+            (transferencia_qty * unit_transferencia) AS transferencia_total,
+            (combo_transferencia_qty * unit_combo_transferencia) AS combo_total,
+            (cautelar_qty * unit_cautelar) AS cautelar_total,
+            (pesquisa_qty * unit_pesquisa) AS pesquisa_total,
+            total_value
+        FROM records
+        WHERE month_key = ?
+        ORDER BY id
+        """,
+        (month_key,),
+    ).fetchall()
+
+    if not rows:
+        return {
+            "month_key": month_key,
+            "month_title": month_title,
+            "has_data": False,
+            "pie": [],
+            "line": [],
+        }
+
+    cumulative_total = 0.0
+    line_data: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        cumulative_total += row["total_value"]
+        line_data.append(
+            {
+                "label": f"{index}. {row['partner_name']}",
+                "value": round(cumulative_total, 2),
+            }
+        )
+
+    pie_data = [
+        {"label": "Transferencia", "value": summary["transferencia_total_value"]},
+        {"label": "Transf. de Combo", "value": summary["combo_transferencia_total_value"]},
+        {"label": "Cautelar", "value": summary["cautelar_total_value"]},
+        {"label": "Pesquisa", "value": summary["pesquisa_total_value"]},
+    ]
+
+    return {
+        "month_key": month_key,
+        "month_title": month_title,
+        "has_data": True,
+        "pie": pie_data,
+        "line": line_data,
+    }
 
 
 def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
@@ -618,6 +677,11 @@ def init_db() -> None:
     with get_db() as connection:
         connection.executescript(
             """
+            CREATE TABLE IF NOT EXISTS app_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS months (
                 month_key TEXT PRIMARY KEY,
                 year_number INTEGER NOT NULL,
@@ -751,6 +815,17 @@ def init_db() -> None:
 
         connection.execute("DELETE FROM records WHERE month_key IS NULL OR month_key = ''")
         connection.execute("DELETE FROM records WHERE month_key < ? OR month_key > ?", (MIN_MONTH_KEY, MAX_MONTH_KEY))
+        cleanup_done = connection.execute(
+            "SELECT value FROM app_meta WHERE key = 'cleanup_records_2026_04_2026_11'"
+        ).fetchone()
+        if cleanup_done is None:
+            connection.execute(
+                "DELETE FROM records WHERE month_key >= ? AND month_key <= ?",
+                ("2026-04", "2026-11"),
+            )
+            connection.execute(
+                "INSERT INTO app_meta (key, value) VALUES ('cleanup_records_2026_04_2026_11', 'done')"
+            )
         ensure_allowed_months(connection)
 
 
@@ -807,6 +882,22 @@ def comparison_data():
         ensure_allowed_months(connection)
         months = get_comparison_data(connection)
     return jsonify({"months": months})
+
+
+@app.get("/api/comparison/<string:month_key>")
+def comparison_month_detail(month_key: str):
+    month_key = clamp_month_key(month_key)
+    try:
+        year_number, month_number = parse_month_key(month_key)
+        if not is_month_allowed(month_key):
+            raise ValueError("Mes fora do intervalo permitido.")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        ensure_month(connection, year_number, month_number)
+        payload = get_month_chart_data(connection, month_key)
+    return jsonify(payload)
 
 
 @app.get("/api/export/<string:month_key>.xlsx")

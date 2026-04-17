@@ -8,6 +8,11 @@
   </head>
   <body>
     <main class="layout">
+      <nav class="top-nav">
+        <a class="nav-button is-active" href="/">Relatorio Mensal</a>
+        <a class="nav-button" href="/comparison">Comparacao de Meses</a>
+      </nav>
+
       <section class="hero">
         <div>
           <p class="eyebrow">Relatorio Mensal</p>
@@ -17,10 +22,6 @@
           <div>
             <span class="hero-label">Registros no mes</span>
             <strong id="record-count">0</strong>
-          </div>
-          <div>
-            <span class="hero-label">Analise</span>
-            <a class="hero-link" href="/comparison">Comparacao de Meses</a>
           </div>
         </div>
       </section>
@@ -49,7 +50,6 @@
           <div class="export-actions">
             <button id="export-xlsx-button" class="secondary-button" type="button">Exportar Excel</button>
             <button id="export-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
-            <a class="secondary-button link-button" href="/comparison">Comparacao de Meses</a>
           </div>
           <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
         </div>
