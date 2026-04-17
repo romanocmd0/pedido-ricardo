@@ -6,6 +6,8 @@ Sistema web em Flask para controle mensal de pedidos com:
 - tabela principal com calculos automaticos;
 - edicao inline;
 - exportacao em Excel e PDF;
+- exportacao direta por aba/mes em Excel e PDF;
+- tela de login protegendo o acesso ao sistema;
 - area separada de comparacao entre meses;
 - area separada de comparacao entre clientes;
 - dashboard visual com evolucao e comparacao por tipo.
@@ -13,6 +15,7 @@ Sistema web em Flask para controle mensal de pedidos com:
 ## Rotas principais
 
 - `/`: tela principal
+- `/login`: tela de acesso protegido
 - `/comparison`: analise comparativa entre meses
 - `/client-comparison`: analise comparativa entre clientes
 - `/api/records`: dados da tela principal
@@ -46,3 +49,23 @@ Tabela `records`
 - a estrutura de `Clientes Particulares` foi removida;
 - o sistema preserva os dados existentes da tabela principal;
 - os meses novos sao gerados vazios automaticamente ate Dezembro de 2050.
+
+## Senha de acesso
+
+O sistema usa a variavel de ambiente `APP_PASSWORD` para proteger o acesso.
+
+Para rodar localmente no PowerShell:
+
+```powershell
+$env:APP_PASSWORD='@Certive123'
+$env:SECRET_KEY='troque-por-uma-chave-grande-e-aleatoria'
+flask --app app run
+```
+
+No Railway:
+
+- Abra o projeto no Railway.
+- Entre em `Variables`.
+- Adicione `APP_PASSWORD` com o valor da senha atual.
+- Adicione `SECRET_KEY` com uma chave longa e aleatoria para manter as sessoes seguras.
+- Salve e faca um novo deploy.

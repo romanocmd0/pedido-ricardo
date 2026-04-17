@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acesso protegido</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="login-layout">
+      <section class="panel login-panel">
+        <p class="eyebrow">Relatorio Mensal</p>
+        <h1>Acesso protegido</h1>
+        <p class="login-copy">Digite a senha para acessar o sistema.</p>
+
+        {% if error %}
+          <div class="login-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" class="login-form">
+          <input type="hidden" name="next" value="{{ next_url }}" />
+          <label class="field">
+            <span>Senha</span>
+            <input name="password" type="password" autocomplete="current-password" required autofocus />
+          </label>
+          <button class="primary-button" type="submit">Entrar</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

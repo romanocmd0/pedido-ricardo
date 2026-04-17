@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import hmac
 import json
 import os
 import sqlite3
@@ -9,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from reportlab.lib import colors
@@ -75,12 +76,35 @@ MAX_MONTH_KEY = "2050-12"
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
+app.secret_key = os.getenv("SECRET_KEY") or os.getenv("APP_SECRET_KEY") or os.urandom(32)
+
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 
 
 def get_db() -> sqlite3.Connection:
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def is_authenticated() -> bool:
+    return bool(session.get("authenticated"))
+
+
+def wants_json_response() -> bool:
+    return request.path.startswith("/api/")
+
+
+@app.before_request
+def require_login():
+    public_endpoints = {"login", "healthcheck", "static"}
+    if request.endpoint in public_endpoints:
+        return None
+    if is_authenticated():
+        return None
+    if wants_json_response():
+        return jsonify({"error": "Autenticacao obrigatoria."}), 401
+    return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
 
 
 def normalize_text(value: str | None) -> str:
@@ -743,7 +767,15 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
         ("Total Transf. de Combo", summary["combo_transferencia_total_value"]),
         ("Total Cautelar", summary["cautelar_total_value"]),
         ("Total Pesquisa", summary["pesquisa_total_value"]),
+        ("Registros no mes", summary["record_count"]),
+        ("Total de operacoes", summary["total_operations"]),
+        ("Qtd. Transferencias", summary["transferencia_group_qty"]),
+        ("Qtd. Transf. Caminhao", summary["caminhao_transferencia_qty"]),
+        ("Qtd. Transf. de Combo", summary["combo_transferencia_qty"]),
+        ("Qtd. Cautelares", summary["cautelar_qty"]),
+        ("Qtd. Pesquisas", summary["pesquisa_qty"]),
         ("Percentual Transferencias", f"{summary['transferencia_pct']}%"),
+        ("Percentual Transf. Caminhao", f"{summary['caminhao_transferencia_pct']}%"),
         ("Percentual Transf. de Combo", f"{summary['combo_transferencia_pct']}%"),
         ("Percentual Cautelares", f"{summary['cautelar_pct']}%"),
         ("Percentual Pesquisas", f"{summary['pesquisa_pct']}%"),
@@ -837,6 +869,18 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         ["Total Transf. de Combo", f"R$ {summary['combo_transferencia_total_value']:.2f}"],
         ["Total Cautelar", f"R$ {summary['cautelar_total_value']:.2f}"],
         ["Total Pesquisa", f"R$ {summary['pesquisa_total_value']:.2f}"],
+        ["Registros no mes", str(summary["record_count"])],
+        ["Total de operacoes", str(summary["total_operations"])],
+        ["Qtd. Transferencias", str(summary["transferencia_group_qty"])],
+        ["Qtd. Transf. Caminhao", str(summary["caminhao_transferencia_qty"])],
+        ["Qtd. Transf. de Combo", str(summary["combo_transferencia_qty"])],
+        ["Qtd. Cautelares", str(summary["cautelar_qty"])],
+        ["Qtd. Pesquisas", str(summary["pesquisa_qty"])],
+        ["Percentual Transferencias", f"{summary['transferencia_pct']}%"],
+        ["Percentual Transf. Caminhao", f"{summary['caminhao_transferencia_pct']}%"],
+        ["Percentual Transf. de Combo", f"{summary['combo_transferencia_pct']}%"],
+        ["Percentual Cautelares", f"{summary['cautelar_pct']}%"],
+        ["Percentual Pesquisas", f"{summary['pesquisa_pct']}%"],
     ]
     summary_table = Table(summary_data, colWidths=[70 * mm, 45 * mm])
     summary_table.setStyle(
@@ -1085,7 +1129,32 @@ def init_db() -> None:
             connection.execute(
                 "INSERT INTO app_meta (key, value) VALUES ('cleanup_records_2026_04_2026_11', 'done')"
             )
-        ensure_allowed_months(connection)
+ensure_allowed_months(connection)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = ""
+    next_url = request.args.get("next") or url_for("index")
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        next_url = request.form.get("next") or url_for("index")
+        if not APP_PASSWORD:
+            error = "Senha do sistema nao configurada. Defina APP_PASSWORD no ambiente."
+            return render_template("login.html", error=error, next_url=next_url), 500
+        if hmac.compare_digest(password, APP_PASSWORD):
+            session.clear()
+            session["authenticated"] = True
+            safe_next_url = next_url if next_url.startswith("/") and not next_url.startswith("//") else url_for("index")
+            return redirect(safe_next_url)
+        error = "Senha incorreta. Tente novamente."
+    return render_template("login.html", error=error, next_url=next_url)
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 @app.route("/")

@@ -28,6 +28,37 @@ body {
 button, input, select, a { font: inherit; }
 a { color: inherit; text-decoration: none; }
 .layout { width: min(1520px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 40px; }
+.login-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  width: min(100% - 32px, 520px);
+  margin: 0 auto;
+  padding: 32px 0;
+}
+.login-panel {
+  width: 100%;
+  padding: 34px;
+}
+.login-panel h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+.login-copy {
+  margin: 0 0 22px;
+  color: var(--muted);
+}
+.login-error {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: #ffd1d1;
+  background: rgba(255,122,122,0.12);
+  border: 1px solid rgba(255,122,122,0.28);
+}
+.login-form .primary-button {
+  width: 100%;
+}
 .top-nav {
   display: flex;
   justify-content: center;
@@ -86,6 +117,27 @@ a { color: inherit; text-decoration: none; }
 }
 .month-tab span, .month-tab small { display: block; }
 .month-tab small { margin-top: 6px; color: var(--muted); }
+.month-tab-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.tab-export-button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(212,175,55,0.24);
+  background: rgba(212,175,55,0.12);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.tab-export-button:hover {
+  background: rgba(212,175,55,0.22);
+}
 .month-tab.is-active { background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(212,175,55,0.08)); border-color: var(--accent); }
 .month-tab:hover, .primary-button:hover, .secondary-button:hover, .icon-button:hover, .hero-link:hover { transform: translateY(-1px); opacity: 0.94; }
 .filters { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }

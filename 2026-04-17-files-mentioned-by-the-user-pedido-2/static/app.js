@@ -150,13 +150,26 @@ function renderMonthTabs() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `month-tab ${month.month_key === state.activeMonthKey ? "is-active" : ""}`;
-    button.innerHTML = `<span>${month.month_title}</span><small>${month.record_count} registro(s)</small>`;
+    button.innerHTML = `
+      <span>${month.month_title}</span>
+      <small>${month.record_count} registro(s)</small>
+      <span class="month-tab-actions">
+        <span class="tab-export-button" data-export-type="pdf">PDF</span>
+        <span class="tab-export-button" data-export-type="xlsx">Excel</span>
+      </span>
+    `;
     button.addEventListener("click", async () => {
       if (state.activeMonthKey === month.month_key) return;
       state.activeMonthKey = month.month_key;
       state.editingRowId = null;
       resetForm();
       await loadRecords();
+    });
+    button.querySelectorAll("[data-export-type]").forEach((exportButton) => {
+      exportButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        downloadMonthExport(month.month_key, exportButton.dataset.exportType);
+      });
     });
     elements.monthTabs.appendChild(button);
   });
@@ -436,9 +449,13 @@ function setupSorting() {
   });
 }
 
+function downloadMonthExport(monthKey, type) {
+  if (!monthKey) return;
+  window.open(`/api/export/${monthKey}.${type}`, "_blank");
+}
+
 function downloadExport(type) {
-  if (!state.activeMonthKey) return;
-  window.open(`/api/export/${state.activeMonthKey}.${type}`, "_blank");
+  downloadMonthExport(state.activeMonthKey, type);
 }
 
 function setupEvents() {
