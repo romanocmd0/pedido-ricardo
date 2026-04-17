@@ -1129,7 +1129,7 @@ def init_db() -> None:
             connection.execute(
                 "INSERT INTO app_meta (key, value) VALUES ('cleanup_records_2026_04_2026_11', 'done')"
             )
-ensure_allowed_months(connection)
+        ensure_allowed_months(connection)
 
 
 @app.route("/login", methods=["GET", "POST"])
