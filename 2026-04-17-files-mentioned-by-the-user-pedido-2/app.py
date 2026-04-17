@@ -739,8 +739,7 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     summary = report["summary"]
     summary_rows = [
         ("Valor total", summary["total_value"]),
-        ("Total Transferencia", summary["transferencia_group_total_value"]),
-        ("Total Transf. Caminhao", summary["caminhao_transferencia_total_value"]),
+        ("Total de Transferencias", summary["transferencia_group_total_value"]),
         ("Total Transf. de Combo", summary["combo_transferencia_total_value"]),
         ("Total Cautelar", summary["cautelar_total_value"]),
         ("Total Pesquisa", summary["pesquisa_total_value"]),
@@ -834,8 +833,7 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
     summary_data = [
         ["Metrica", "Valor"],
         ["Valor total", f"R$ {summary['total_value']:.2f}"],
-        ["Total Transferencia", f"R$ {summary['transferencia_group_total_value']:.2f}"],
-        ["Total Transf. Caminhao", f"R$ {summary['caminhao_transferencia_total_value']:.2f}"],
+        ["Total de Transferencias", f"R$ {summary['transferencia_group_total_value']:.2f}"],
         ["Total Transf. de Combo", f"R$ {summary['combo_transferencia_total_value']:.2f}"],
         ["Total Cautelar", f"R$ {summary['cautelar_total_value']:.2f}"],
         ["Total Pesquisa", f"R$ {summary['pesquisa_total_value']:.2f}"],

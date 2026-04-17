@@ -102,6 +102,32 @@ a { color: inherit; text-decoration: none; }
 .stat-card p, .form-caption, .inline-hint, .breakdown-card span { margin: 0; color: var(--muted); line-height: 1.45; }
 .totals-breakdown { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .breakdown-card { padding: 18px; border-radius: 18px; border: 1px solid var(--line); }
+.compare-total-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.compare-total-pair div {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(212,175,55,0.16);
+}
+.compare-total-pair small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.compare-total-pair strong {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.compare-delta {
+  margin: 12px 0 0;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
 .inline-hint { margin-bottom: 12px; }
 .grid { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(340px, 0.9fr); gap: 20px; }
 .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
@@ -121,7 +147,15 @@ select {
 input:focus,
 select:focus { outline: 2px solid rgba(212,175,55,0.18); border-color: var(--accent); }
 #client-select,
-#client-select option {
+#client-select option,
+#compare-first-month,
+#compare-first-month option,
+#compare-second-month,
+#compare-second-month option,
+#client-view-mode,
+#client-view-mode option,
+#client-month-select,
+#client-month-select option {
   background: #ffffff;
   color: #111111;
 }

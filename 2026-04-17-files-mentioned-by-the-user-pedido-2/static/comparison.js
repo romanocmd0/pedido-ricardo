@@ -44,9 +44,28 @@ function buildLineChart(target, labels, datasets) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#f0d777" } } },
+      plugins: {
+        legend: { labels: { color: "#f0d777" } },
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0]?.label || "",
+          },
+        },
+      },
       scales: {
-        x: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
+        x: {
+          ticks: {
+            color: "#c7d3e2",
+            maxRotation: 45,
+            minRotation: 25,
+            autoSkip: true,
+            callback: function (value) {
+              const label = this.getLabelForValue(value);
+              return label.length > 22 ? `${label.slice(0, 22)}...` : label;
+            },
+          },
+          grid: { color: "rgba(212,175,55,0.08)" },
+        },
         y: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
       },
     },
@@ -97,7 +116,7 @@ function renderComparisonTable(months) {
   counter.textContent = `${months.length}`;
 
   if (!months.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum dado disponivel para comparacao.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum dado disponivel para comparacao.</td></tr>';
     return;
   }
 
@@ -109,7 +128,6 @@ function renderComparisonTable(months) {
       <td>${month.month_title}</td>
       <td>${formatCurrency(month.total_value)}</td>
       <td>${formatCurrency(month.transferencia_total_value)}</td>
-      <td>${formatCurrency(month.caminhao_transferencia_total_value)}</td>
       <td>${formatCurrency(month.combo_transferencia_total_value)}</td>
       <td>${formatCurrency(month.cautelar_total_value)}</td>
       <td>${formatCurrency(month.pesquisa_total_value)}</td>
@@ -234,7 +252,7 @@ async function loadMonthCharts(monthKey) {
       context: document.querySelector("#line-chart-canvas"),
       chart: comparisonState.lineChart,
     },
-    data.line.map((item) => item.label),
+    data.line.map((item) => item.partner_name || item.label),
     [
       {
         label: "Valor por vistoria",
@@ -333,8 +351,7 @@ async function compareSelectedMonths() {
 
   const metrics = [
     ["Total geral", "total_value"],
-    ["Transferencia", "transferencia_total_value"],
-    ["Transf. Caminhao", "caminhao_transferencia_total_value"],
+    ["Total de Transferencias", "transferencia_total_value"],
     ["Transf. de Combo", "combo_transferencia_total_value"],
     ["Cautelar", "cautelar_total_value"],
     ["Pesquisa", "pesquisa_total_value"],
@@ -346,9 +363,17 @@ async function compareSelectedMonths() {
       return `
         <article class="breakdown-card">
           <span>${label}</span>
-          <strong>${formatCurrency(data.second[key])}</strong>
-          <p>${data.second.month_title} vs ${data.first.month_title}</p>
-          <p>Diferenca: ${formatCurrency(delta.difference)} | ${formatPercentDelta(delta.pct_change)}</p>
+          <div class="compare-total-pair">
+            <div>
+              <small>${data.first.month_title}</small>
+              <strong>${formatCurrency(data.first[key])}</strong>
+            </div>
+            <div>
+              <small>${data.second.month_title}</small>
+              <strong>${formatCurrency(data.second[key])}</strong>
+            </div>
+          </div>
+          <p class="compare-delta">Diferenca: ${formatCurrency(delta.difference)} | ${formatPercentDelta(delta.pct_change)}</p>
         </article>
       `;
     })
@@ -356,8 +381,7 @@ async function compareSelectedMonths() {
 
   const valueMetrics = [
     ["Total geral", "total_value"],
-    ["Transferencia", "transferencia_total_value"],
-    ["Transf. Caminhao", "caminhao_transferencia_total_value"],
+    ["Total Transferencias", "transferencia_total_value"],
     ["Transf. Combo", "combo_transferencia_total_value"],
     ["Cautelar", "cautelar_total_value"],
     ["Pesquisa", "pesquisa_total_value"],

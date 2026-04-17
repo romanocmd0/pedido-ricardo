@@ -32,7 +32,6 @@ const elements = {
   summaryPesquisaQty: document.querySelector("#summary-pesquisa-qty"),
   summaryPesquisaPct: document.querySelector("#summary-pesquisa-pct"),
   summaryTransferenciaTotalValue: document.querySelector("#summary-transferencia-total-value"),
-  summaryCaminhaoTransferenciaTotalValue: document.querySelector("#summary-caminhao-transferencia-total-value"),
   summaryComboTransferenciaTotalValue: document.querySelector("#summary-combo-transferencia-total-value"),
   summaryCautelarTotalValue: document.querySelector("#summary-cautelar-total-value"),
   summaryPesquisaTotalValue: document.querySelector("#summary-pesquisa-total-value"),
@@ -204,7 +203,6 @@ function renderSummary() {
   elements.summaryTransferenciaTotalValue.textContent = formatCurrency(
     summary.transferencia_group_total_value || summary.transferencia_total_value
   );
-  elements.summaryCaminhaoTransferenciaTotalValue.textContent = formatCurrency(summary.caminhao_transferencia_total_value);
   elements.summaryComboTransferenciaTotalValue.textContent = formatCurrency(summary.combo_transferencia_total_value);
   elements.summaryCautelarTotalValue.textContent = formatCurrency(summary.cautelar_total_value);
   elements.summaryPesquisaTotalValue.textContent = formatCurrency(summary.pesquisa_total_value);
