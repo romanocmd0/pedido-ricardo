@@ -20,7 +20,8 @@ Observacao importante:
 - `app.py`: agora le `PORT`, `DATA_DIR`, `DATABASE_PATH` e `SEED_PATH`
 - `requirements.txt`: inclui `gunicorn`
 - `Procfile`: comando web para producao
-- `railway.toml`: start command e healthcheck
+- `railway.toml`: usa `Dockerfile` e healthcheck
+- `Dockerfile`: build deterministico para evitar falhas do Railpack
 - `.env.example`: exemplo de variaveis locais
 
 ## Passo a passo
@@ -83,7 +84,7 @@ O projeto ja inclui:
 - `Procfile`
 - `railway.toml`
 
-O Railway deve iniciar com:
+O container inicia com:
 
 ```text
 gunicorn --bind 0.0.0.0:$PORT app:app
