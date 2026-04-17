@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistema de Pedidos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Pedido Ricardo</p>
+          <h1>Controle web para substituir a planilha</h1>
+          <p class="hero-copy">
+            Visualize, filtre, ordene e mantenha os registros do dia a dia em um banco SQLite,
+            sem depender mais do Excel.
+          </p>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="hero-label">Registros exibidos</span>
+            <strong id="record-count">0</strong>
+          </div>
+          <div>
+            <span class="hero-label">Períodos</span>
+            <strong id="period-count">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel controls-panel">
+        <div class="filters">
+          <label class="field compact">
+            <span>Busca</span>
+            <input id="search-input" type="search" placeholder="Cliente, parceiro ou mês" />
+          </label>
+          <label class="field compact">
+            <span>Período</span>
+            <select id="period-filter">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <section class="panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Base de dados</p>
+              <h2>Registros</h2>
+            </div>
+            <button id="new-record-button" class="primary-button" type="button">Novo registro</button>
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="reference_date">Data</th>
+                  <th data-sort="period_label">Período</th>
+                  <th data-sort="partner_name">Parceiro</th>
+                  <th data-sort="transferencia_qty">Transfer.</th>
+                  <th data-sort="cautelar_qty">Cautelar</th>
+                  <th data-sort="pesquisa_qty">Pesquisa</th>
+                  <th data-sort="unit_transferencia">Vlr. Transfer.</th>
+                  <th data-sort="unit_cautelar">Vlr. Cautelar</th>
+                  <th data-sort="unit_pesquisa">Vlr. Pesquisa</th>
+                  <th data-sort="total_value">Total</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="records-body">
+                <tr>
+                  <td colspan="11" class="empty-state">Carregando registros...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel form-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Cadastro</p>
+              <h2 id="form-title">Novo registro</h2>
+            </div>
+          </div>
+
+          <form id="record-form">
+            <input id="record-id" type="hidden" />
+
+            <label class="field">
+              <span>Data de referência</span>
+              <input id="reference-date" type="date" />
+            </label>
+
+            <label class="field">
+              <span>Período</span>
+              <input id="period-label" type="text" placeholder="Ex.: ABRIL" maxlength="20" />
+            </label>
+
+            <label class="field">
+              <span>Parceiro / cliente</span>
+              <input id="partner-name" type="text" placeholder="Nome do parceiro" required />
+            </label>
+
+            <div class="three-columns">
+              <label class="field">
+                <span>Qtd. transferência</span>
+                <input id="transferencia-qty" type="number" min="0" step="1" value="0" />
+              </label>
+              <label class="field">
+                <span>Qtd. cautelar</span>
+                <input id="cautelar-qty" type="number" min="0" step="1" value="0" />
+              </label>
+              <label class="field">
+                <span>Qtd. pesquisa</span>
+                <input id="pesquisa-qty" type="number" min="0" step="1" value="0" />
+              </label>
+            </div>
+
+            <div class="three-columns">
+              <label class="field">
+                <span>Valor transferência</span>
+                <input id="unit-transferencia" type="number" min="0" step="0.01" value="160" />
+              </label>
+              <label class="field">
+                <span>Valor cautelar</span>
+                <input id="unit-cautelar" type="number" min="0" step="0.01" value="240" />
+              </label>
+              <label class="field">
+                <span>Valor pesquisa</span>
+                <input id="unit-pesquisa" type="number" min="0" step="0.01" value="80" />
+              </label>
+            </div>
+
+            <div class="total-box">
+              <span>Total calculado</span>
+              <strong id="calculated-total">R$ 0,00</strong>
+            </div>
+
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar</button>
+              <button id="cancel-edit-button" class="secondary-button" type="button">Limpar</button>
+            </div>
+          </form>
+        </aside>
+      </section>
+    </main>
+
+    <template id="row-actions-template">
+      <div class="actions">
+        <button class="icon-button edit-button" type="button">Editar</button>
+        <button class="icon-button danger-button delete-button" type="button">Excluir</button>
+      </div>
+    </template>
+
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </body>
+</html>
