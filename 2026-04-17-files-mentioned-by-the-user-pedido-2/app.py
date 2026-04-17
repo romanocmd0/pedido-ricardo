@@ -392,10 +392,6 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-
-            CREATE INDEX IF NOT EXISTS idx_records_partner ON records (partner_name);
-            CREATE INDEX IF NOT EXISTS idx_records_month ON records (month_key);
-            CREATE INDEX IF NOT EXISTS idx_months_sort ON months (year_number, month_number);
             """
         )
 
@@ -404,6 +400,14 @@ def init_db() -> None:
         }
         if "month_key" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN month_key TEXT")
+
+        connection.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_records_partner ON records (partner_name);
+            CREATE INDEX IF NOT EXISTS idx_records_month ON records (month_key);
+            CREATE INDEX IF NOT EXISTS idx_months_sort ON months (year_number, month_number);
+            """
+        )
 
         record_count = connection.execute("SELECT COUNT(*) FROM records").fetchone()[0]
         if record_count == 0 and SEED_PATH.exists():
