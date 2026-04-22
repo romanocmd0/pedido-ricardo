@@ -82,6 +82,7 @@ CASH_SERVICE_CONFIG = {
     "TRANSF. DE COMBO": ("Transf. do Combo", "combo_transferencia_qty", "unit_combo_transferencia"),
     "CAUTELAR": ("Cautelar", "cautelar_qty", "unit_cautelar"),
     "PESQUISA": ("Pesquisa", "pesquisa_qty", "unit_pesquisa"),
+    "DIVERSOS": ("Diversos", None, None),
 }
 
 app = Flask(__name__)
@@ -405,10 +406,16 @@ def apply_monthly_cash_delta(
     if quantity_delta == 0 and amount_delta == 0:
         return
 
+    service_config = CASH_SERVICE_CONFIG.get(normalize_text(service_name))
+    if not service_config:
+        return
+    canonical_service, qty_field, unit_field = service_config
+    if not qty_field or not unit_field:
+        return
+
     month_key = cash_month_key(cash_date)
     year_number, month_number = parse_month_key(month_key)
     ensure_month(connection, year_number, month_number)
-    canonical_service, qty_field, unit_field = CASH_SERVICE_CONFIG[normalize_text(service_name)]
     row = connection.execute(
         """
         SELECT *
@@ -1102,6 +1109,55 @@ def get_cash_day_payload(connection: sqlite3.Connection, cash_date: str) -> dict
     }
 
 
+def get_cash_month_payload(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
+    year_number, month_number = parse_month_key(month_key)
+    days = connection.execute(
+        """
+        SELECT
+            d.cash_date,
+            d.finalized,
+            COUNT(e.id) AS entry_count
+        FROM cash_days d
+        LEFT JOIN cash_entries e ON e.cash_date = d.cash_date
+        WHERE d.year_number = ? AND d.month_number = ?
+        GROUP BY d.cash_date, d.finalized
+        ORDER BY d.cash_date
+        """,
+        (year_number, month_number),
+    ).fetchall()
+
+    day_rows = []
+    totals = {
+        "total_in": 0.0,
+        "total_out": 0.0,
+        "total_deposit": 0.0,
+        "result": 0.0,
+        "entry_count": 0,
+    }
+    for day in days:
+        summary = summarize_cash_day(connection, day["cash_date"])
+        day_payload = {
+            "cash_date": day["cash_date"],
+            "display_date": format_display_date(day["cash_date"]),
+            "finalized": bool(day["finalized"]),
+            "entry_count": int(day["entry_count"] or 0),
+            "summary": summary,
+        }
+        day_rows.append(day_payload)
+        totals["total_in"] += summary["total_in"]
+        totals["total_out"] += summary["total_out"]
+        totals["total_deposit"] += summary["total_deposit"]
+        totals["result"] += summary["result"]
+        totals["entry_count"] += summary["entry_count"]
+
+    return {
+        "month_key": month_key,
+        "month_title": f"{MONTH_TITLES[month_number]} de {year_number}",
+        "days": day_rows,
+        "totals": {key: round(value, 2) for key, value in totals.items()},
+    }
+
+
 def get_cash_tree(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
@@ -1112,7 +1168,7 @@ def get_cash_tree(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             d.month_title,
             d.finalized,
             COUNT(e.id) AS entry_count,
-            COALESCE(SUM(CASE WHEN e.flow_type = 'saida' THEN -e.amount ELSE e.amount END), 0) AS result_value
+            COALESCE(SUM(CASE WHEN e.flow_type IN ('saida', 'deposito') THEN -e.amount ELSE e.amount END), 0) AS result_value
         FROM cash_days d
         LEFT JOIN cash_entries e ON e.cash_date = d.cash_date
         GROUP BY d.cash_date, d.year_number, d.month_number, d.month_title, d.finalized
@@ -1431,6 +1487,80 @@ def build_cash_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
         )
 
     table = Table(table_data, colWidths=[54 * mm, 28 * mm, 38 * mm, 26 * mm, 42 * mm, 28 * mm], repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FFFDF7")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(table)
+    document.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
+    buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=10 * mm,
+        rightMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+    styles = getSampleStyleSheet()
+    totals = payload["totals"]
+    story = [Paragraph(f"Fluxo de Caixa Mensal - {payload['month_title']}", styles["Title"]), Spacer(1, 8)]
+
+    summary_data = [
+        ["Resumo do mes", "Valor"],
+        ["Total de entradas", f"R$ {totals['total_in']:.2f}"],
+        ["Total de saidas", f"R$ {totals['total_out']:.2f}"],
+        ["Depositos", f"R$ {totals['total_deposit']:.2f}"],
+        ["Resultado acumulado", f"R$ {totals['result']:.2f}"],
+        ["Total de lancamentos", str(int(totals["entry_count"]))],
+    ]
+    summary_table = Table(summary_data, colWidths=[70 * mm, 45 * mm])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F8F4E6")),
+            ]
+        )
+    )
+    story.extend([summary_table, Spacer(1, 10)])
+
+    table_data = [["Dia", "Lancamentos", "Entradas", "Saidas", "Depositos", "Resultado", "Status"]]
+    if payload["days"]:
+        for day in payload["days"]:
+            summary = day["summary"]
+            table_data.append(
+                [
+                    day["display_date"],
+                    str(day["entry_count"]),
+                    f"R$ {summary['total_in']:.2f}",
+                    f"R$ {summary['total_out']:.2f}",
+                    f"R$ {summary['total_deposit']:.2f}",
+                    f"R$ {summary['result']:.2f}",
+                    "Finalizado" if day["finalized"] else "Aberto",
+                ]
+            )
+    else:
+        table_data.append(["Sem caixas no mes", "0", "R$ 0.00", "R$ 0.00", "R$ 0.00", "R$ 0.00", "-"])
+
+    table = Table(table_data, colWidths=[30 * mm, 28 * mm, 32 * mm, 32 * mm, 32 * mm, 34 * mm, 30 * mm], repeatRows=1)
     table.setStyle(
         TableStyle(
             [
@@ -2006,6 +2136,26 @@ def export_cash_day_pdf(cash_date: str):
         mimetype="application/pdf",
         as_attachment=True,
         download_name=f"fluxo-caixa-{cash_date}.pdf",
+    )
+
+
+@app.get("/api/cash-flow/month/<string:month_key>.pdf")
+def export_cash_month_pdf(month_key: str):
+    try:
+        parse_month_key(month_key)
+        if not is_month_allowed(month_key):
+            raise ValueError("Mes fora do intervalo permitido.")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with get_db() as connection:
+        payload = get_cash_month_payload(connection, month_key)
+    buffer = build_cash_month_pdf_report(payload)
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"fluxo-caixa-mensal-{month_key}.pdf",
     )
 
 

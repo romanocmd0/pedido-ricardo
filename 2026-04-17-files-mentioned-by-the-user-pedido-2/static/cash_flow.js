@@ -12,6 +12,7 @@ const cashElements = {
   result: document.querySelector("#cash-result"),
   status: document.querySelector("#cash-status"),
   exportPdfButton: document.querySelector("#export-cash-pdf-button"),
+  exportMonthPdfButton: document.querySelector("#export-cash-month-pdf-button"),
   finalizeButton: document.querySelector("#finalize-cash-button"),
   reopenButton: document.querySelector("#reopen-cash-button"),
   deleteDayButton: document.querySelector("#delete-cash-day-button"),
@@ -307,6 +308,9 @@ function setupEvents() {
   cashElements.clearButton.addEventListener("click", resetCashForm);
   cashElements.exportPdfButton.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");
+  });
+  cashElements.exportMonthPdfButton.addEventListener("click", () => {
+    window.open(`/api/cash-flow/month/${cashState.activeDate.slice(0, 7)}.pdf`, "_blank");
   });
   cashElements.finalizeButton.addEventListener("click", () => setFinalized(true));
   cashElements.reopenButton.addEventListener("click", () => setFinalized(false));
