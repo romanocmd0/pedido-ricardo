@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Requisicoes Parceiros</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="layout">
+      <nav class="top-nav">
+        <a class="nav-button" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button" href="/">Relatorio Mensal</a>
+        <a class="nav-button" href="/comparison">Comparacao de Meses</a>
+        <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
+        <a class="nav-button is-active" href="/partner-requests">Requisicoes Parceiros</a>
+      </nav>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Pagamentos Rec</p>
+          <h1>Requisicoes Parceiros</h1>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="hero-label">Parceiros</span>
+            <strong id="requests-partner-count">0</strong>
+          </div>
+          <div>
+            <span class="hero-label">Total selecionado</span>
+            <strong id="requests-selected-total">R$ 0,00</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="requests-layout">
+        <aside class="panel requests-partners-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Parceiros</p>
+              <h2>Registros com Rec</h2>
+            </div>
+          </div>
+          <div id="requests-partner-list" class="requests-partner-list">
+            <div class="empty-state">Carregando parceiros...</div>
+          </div>
+        </aside>
+
+        <section class="panel requests-report-panel">
+          <div class="request-report-header">
+            <div>
+              <p class="section-tag">Relatorio individual</p>
+              <h2 id="request-report-title">Selecione um parceiro</h2>
+              <p id="request-pix-key" class="request-pix-key">Chave PIX: 64.683.079/0001-85</p>
+            </div>
+            <img class="request-qr-code" src="/api/partner-requests/pix-qr.svg" alt="QR Code PIX" />
+          </div>
+
+          <div class="form-actions request-export-actions">
+            <button id="export-request-pdf-button" class="primary-button" type="button" disabled>Exportar PDF</button>
+            <button id="export-request-xlsx-button" class="secondary-button" type="button" disabled>Exportar Excel</button>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="request-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Placa</th>
+                  <th>Servico</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody id="request-report-body">
+                <tr>
+                  <td colspan="4" class="empty-state">Selecione um parceiro para visualizar a requisicao.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="total-box request-total-box">
+            <span>Total acumulado</span>
+            <strong id="request-report-total">R$ 0,00</strong>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='partner_requests.js') }}" defer></script>
+  </body>
+</html>

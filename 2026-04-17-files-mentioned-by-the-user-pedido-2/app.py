@@ -11,9 +11,12 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, session, url_for
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from reportlab.graphics import renderSVG
+from reportlab.graphics.barcode.qr import QrCodeWidget
+from reportlab.graphics.shapes import Drawing
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
@@ -74,6 +77,7 @@ ALLOWED_SORT_COLUMNS = {
 
 MIN_MONTH_KEY = "2026-04"
 MAX_MONTH_KEY = "2050-12"
+PIX_KEY = "64.683.079/0001-85"
 CASH_SERVICE_CONFIG = {
     "TRANSFERENCIA": ("Transferencia", "transferencia_qty", "unit_transferencia"),
     "TRANSF. DE CAMINHAO": ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia"),
@@ -124,6 +128,12 @@ def normalize_text(value: str | None) -> str:
     normalized = unicodedata.normalize("NFKD", value.strip())
     ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
     return ascii_only.upper()
+
+
+def safe_filename_part(value: str) -> str:
+    normalized = normalize_text(value).lower().replace(" ", "-")
+    safe = "".join(character for character in normalized if character.isalnum() or character in {"-", "_"})
+    return safe.strip("-") or "parceiro"
 
 
 def month_key_from_parts(year_number: int, month_number: int) -> str:
@@ -1158,6 +1168,91 @@ def get_cash_month_payload(connection: sqlite3.Connection, month_key: str) -> di
     }
 
 
+def get_partner_request_rows(connection: sqlite3.Connection, partner_name: str | None = None) -> list[sqlite3.Row]:
+    params: list[Any] = []
+    partner_filter = ""
+    if partner_name:
+        partner_filter = "AND customer_name = ?"
+        params.append(partner_name)
+
+    return connection.execute(
+        f"""
+        SELECT
+            id,
+            cash_date,
+            customer_name,
+            plate,
+            service_name,
+            amount,
+            payment_method,
+            flow_type,
+            created_at,
+            updated_at
+        FROM cash_entries
+        WHERE UPPER(TRIM(payment_method)) = 'REC'
+        {partner_filter}
+        ORDER BY customer_name COLLATE NOCASE, cash_date, id
+        """,
+        params,
+    ).fetchall()
+
+
+def get_partner_requests_payload(connection: sqlite3.Connection) -> dict[str, Any]:
+    rows = get_partner_request_rows(connection)
+    partners: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        partner = row["customer_name"]
+        item = partners.setdefault(
+            partner,
+            {
+                "partner_name": partner,
+                "entry_count": 0,
+                "total_value": 0.0,
+                "last_date": row["cash_date"],
+            },
+        )
+        item["entry_count"] += 1
+        item["total_value"] += float(row["amount"] or 0)
+        item["last_date"] = max(item["last_date"], row["cash_date"])
+
+    return {
+        "pix_key": PIX_KEY,
+        "partners": [
+            {
+                **partner,
+                "total_value": round(partner["total_value"], 2),
+                "last_display_date": format_display_date(partner["last_date"]),
+            }
+            for partner in sorted(partners.values(), key=lambda item: item["partner_name"].lower())
+        ],
+    }
+
+
+def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str) -> dict[str, Any]:
+    rows = get_partner_request_rows(connection, partner_name)
+    entries = [
+        {
+            "id": row["id"],
+            "cash_date": row["cash_date"],
+            "display_date": format_display_date(row["cash_date"]),
+            "plate": row["plate"],
+            "service_name": row["service_name"],
+            "amount": round(float(row["amount"] or 0), 2),
+            "payment_method": row["payment_method"],
+            "flow_type": row["flow_type"],
+        }
+        for row in rows
+    ]
+    return {
+        "pix_key": PIX_KEY,
+        "partner_name": partner_name,
+        "title": f"REQUISICAO {partner_name.upper()}",
+        "entries": entries,
+        "entry_count": len(entries),
+        "total_value": round(sum(entry["amount"] for entry in entries), 2),
+    }
+
+
 def get_cash_tree(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
@@ -1580,6 +1675,138 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
     return buffer
 
 
+def build_pix_qr_drawing(size: int = 72) -> Drawing:
+    qr_code = QrCodeWidget(PIX_KEY)
+    bounds = qr_code.getBounds()
+    width = bounds[2] - bounds[0]
+    height = bounds[3] - bounds[1]
+    drawing = Drawing(size, size, transform=[size / width, 0, 0, size / height, 0, 0])
+    drawing.add(qr_code)
+    return drawing
+
+
+def build_partner_request_excel(payload: dict[str, Any]) -> io.BytesIO:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Requisicao"
+
+    title_fill = PatternFill("solid", fgColor="0E2A47")
+    title_font = Font(color="FFFFFF", bold=True, size=14)
+    header_fill = PatternFill("solid", fgColor="D4AF37")
+    header_font = Font(bold=True, color="0E2A47")
+
+    sheet.merge_cells("A1:D1")
+    sheet["A1"] = payload["title"]
+    sheet["A1"].fill = title_fill
+    sheet["A1"].font = title_font
+    sheet["A1"].alignment = Alignment(horizontal="center")
+    sheet["A2"] = f"Chave PIX: {payload['pix_key']}"
+
+    headers = ["Data", "Placa", "Servico", "Valor"]
+    for col_index, header in enumerate(headers, start=1):
+        cell = sheet.cell(row=4, column=col_index, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    row_index = 5
+    for entry in payload["entries"]:
+        sheet.cell(row=row_index, column=1, value=entry["display_date"])
+        sheet.cell(row=row_index, column=2, value=entry["plate"])
+        sheet.cell(row=row_index, column=3, value=entry["service_name"])
+        sheet.cell(row=row_index, column=4, value=entry["amount"])
+        row_index += 1
+
+    sheet.cell(row=row_index + 1, column=3, value="Total")
+    sheet.cell(row=row_index + 1, column=4, value=payload["total_value"])
+    sheet.cell(row=row_index + 1, column=3).font = header_font
+    sheet.cell(row=row_index + 1, column=4).font = header_font
+
+    for column_letter, width in {"A": 16, "B": 22, "C": 34, "D": 16}.items():
+        sheet.column_dimensions[column_letter].width = width
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
+    buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+    )
+    styles = getSampleStyleSheet()
+    header_style = styles["Title"].clone("RequestHeaderTitle")
+    header_style.textColor = colors.white
+    header_style.fontSize = 16
+    header_style.leading = 20
+    story = []
+
+    header = Table(
+        [
+            [
+                Paragraph(f"<b>{payload['title']}</b><br/>Chave PIX: {payload['pix_key']}", header_style),
+                build_pix_qr_drawing(32 * mm),
+            ]
+        ],
+        colWidths=[140 * mm, 36 * mm],
+    )
+    header.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0E2A47")),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#D4AF37")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    story.extend([header, Spacer(1, 10)])
+
+    table_data = [["Data", "Placa / Servico", "Valor"]]
+    if payload["entries"]:
+        for entry in payload["entries"]:
+            plate_service = f"{entry['plate'] or '-'} / {entry['service_name']}"
+            table_data.append([entry["display_date"], plate_service, f"R$ {entry['amount']:.2f}"])
+    else:
+        table_data.append(["-", "Sem requisicoes para este parceiro", "R$ 0.00"])
+    table_data.append(["", "Total", f"R$ {payload['total_value']:.2f}"])
+
+    table = Table(table_data, colWidths=[32 * mm, 104 * mm, 36 * mm], repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#D4AF37")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -2), colors.HexColor("#FFFDF7")),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#0E2A47")),
+                ("TEXTCOLOR", (0, -1), (-1, -1), colors.white),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    story.append(table)
+    document.build(story)
+    buffer.seek(0)
+    return buffer
+
+
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with get_db() as connection:
@@ -1826,6 +2053,11 @@ def client_comparison_page() -> str:
     return render_template("client_comparison.html")
 
 
+@app.route("/partner-requests")
+def partner_requests_page() -> str:
+    return render_template("partner_requests.html")
+
+
 @app.get("/healthz")
 def healthcheck():
     return jsonify({"status": "ok"})
@@ -1933,6 +2165,64 @@ def client_comparison():
         payload = get_client_comparison_payload(connection, month_key)
         months = get_comparison_data(connection)
     return jsonify({"months": months, **payload})
+
+
+@app.get("/api/partner-requests")
+def partner_requests():
+    with get_db() as connection:
+        payload = get_partner_requests_payload(connection)
+    return jsonify(payload)
+
+
+@app.get("/api/partner-requests/detail")
+def partner_request_detail():
+    partner_name = (request.args.get("partner") or "").strip()
+    if not partner_name:
+        return jsonify({"error": "Parceiro obrigatorio."}), 400
+    with get_db() as connection:
+        payload = get_partner_request_detail(connection, partner_name)
+    return jsonify(payload)
+
+
+@app.get("/api/partner-requests/pix-qr.svg")
+def partner_request_pix_qr():
+    drawing = build_pix_qr_drawing(110)
+    svg = renderSVG.drawToString(drawing)
+    return Response(svg, mimetype="image/svg+xml")
+
+
+@app.get("/api/partner-requests/export.xlsx")
+def export_partner_request_xlsx():
+    partner_name = (request.args.get("partner") or "").strip()
+    if not partner_name:
+        return jsonify({"error": "Parceiro obrigatorio."}), 400
+    with get_db() as connection:
+        payload = get_partner_request_detail(connection, partner_name)
+    buffer = build_partner_request_excel(payload)
+    safe_name = safe_filename_part(partner_name)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"requisicao-{safe_name}.xlsx",
+    )
+
+
+@app.get("/api/partner-requests/export.pdf")
+def export_partner_request_pdf():
+    partner_name = (request.args.get("partner") or "").strip()
+    if not partner_name:
+        return jsonify({"error": "Parceiro obrigatorio."}), 400
+    with get_db() as connection:
+        payload = get_partner_request_detail(connection, partner_name)
+    buffer = build_partner_request_pdf(payload)
+    safe_name = safe_filename_part(partner_name)
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"requisicao-{safe_name}.pdf",
+    )
 
 
 @app.get("/api/cash-flow/tree")
