@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS cash_entries (
     payment_method TEXT NOT NULL,
     payment_group TEXT NOT NULL DEFAULT 'outras',
     flow_type TEXT NOT NULL DEFAULT 'entrada',
+    synced_to_monthly INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cash_date) REFERENCES cash_days (cash_date)

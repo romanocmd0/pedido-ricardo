@@ -11,7 +11,6 @@
       <nav class="top-nav">
         <a class="nav-button" href="/">Relatorio Mensal</a>
         <a class="nav-button is-active" href="/cash-flow">Fluxo de Caixa</a>
-        <a class="nav-button" href="/final-report">Relatorio Final</a>
         <a class="nav-button" href="/comparison">Comparacao de Meses</a>
         <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
       </nav>
@@ -74,7 +73,12 @@
               </label>
               <label class="field">
                 <span>Servico</span>
-                <input id="cash-service-name" type="text" required />
+                <select id="cash-service-name" required>
+                  <option value="">Selecione</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Cautelar">Cautelar</option>
+                  <option value="Pesquisa">Pesquisa</option>
+                </select>
               </label>
               <label class="field">
                 <span>Valor</span>
@@ -118,6 +122,10 @@
             <article class="panel stat-card">
               <span class="section-tag">Outras</span>
               <strong id="cash-total-outras">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Cofre atual</span>
+              <strong id="cash-vault-balance">R$ 0,00</strong>
             </article>
             <article class="panel stat-card">
               <span class="section-tag">Entrada</span>

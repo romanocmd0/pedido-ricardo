@@ -74,6 +74,11 @@ ALLOWED_SORT_COLUMNS = {
 
 MIN_MONTH_KEY = "2026-04"
 MAX_MONTH_KEY = "2050-12"
+CASH_SERVICE_CONFIG = {
+    "TRANSFERENCIA": ("Transferencia", "transferencia_qty", "unit_transferencia"),
+    "CAUTELAR": ("Cautelar", "cautelar_qty", "unit_cautelar"),
+    "PESQUISA": ("Pesquisa", "pesquisa_qty", "unit_pesquisa"),
+}
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
@@ -309,6 +314,13 @@ def ensure_cash_day(connection: sqlite3.Connection, cash_date: str) -> None:
     )
 
 
+def normalize_cash_service(value: str) -> str:
+    normalized = normalize_text(value)
+    if normalized not in CASH_SERVICE_CONFIG:
+        raise ValueError("Selecione um servico valido: Transferencia, Cautelar ou Pesquisa.")
+    return CASH_SERVICE_CONFIG[normalized][0]
+
+
 def validate_cash_entry_payload(payload: dict[str, Any]) -> dict[str, Any]:
     customer_name = (payload.get("customer_name") or "").strip()
     service_name = (payload.get("service_name") or "").strip()
@@ -319,8 +331,7 @@ def validate_cash_entry_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     if not customer_name:
         raise ValueError("O nome do cliente e obrigatorio.")
-    if not service_name:
-        raise ValueError("O servico e obrigatorio.")
+    service_name = normalize_cash_service(service_name)
     if not payment_method:
         raise ValueError("A forma de pagamento e obrigatoria.")
 
@@ -350,9 +361,158 @@ def serialize_cash_entry(row: sqlite3.Row) -> dict[str, Any]:
         "payment_method": row["payment_method"],
         "payment_group": row["payment_group"],
         "flow_type": row["flow_type"],
+        "synced_to_monthly": bool(row["synced_to_monthly"]),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def cash_month_key(cash_date: str) -> str:
+    parsed = parse_cash_date(cash_date)
+    month_key = month_key_from_parts(parsed.year, parsed.month)
+    if not is_month_allowed(month_key):
+        raise ValueError("A data do caixa precisa estar entre Abril de 2026 e Dezembro de 2050.")
+    return month_key
+
+
+def monthly_record_payload_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "transferencia_qty": row["transferencia_qty"],
+        "caminhao_transferencia_qty": row["caminhao_transferencia_qty"],
+        "combo_transferencia_qty": row["combo_transferencia_qty"],
+        "cautelar_qty": row["cautelar_qty"],
+        "pesquisa_qty": row["pesquisa_qty"],
+        "unit_transferencia": row["unit_transferencia"],
+        "unit_caminhao_transferencia": row["unit_caminhao_transferencia"],
+        "unit_combo_transferencia": row["unit_combo_transferencia"],
+        "unit_cautelar": row["unit_cautelar"],
+        "unit_pesquisa": row["unit_pesquisa"],
+    }
+
+
+def apply_monthly_cash_delta(
+    connection: sqlite3.Connection,
+    cash_date: str,
+    customer_name: str,
+    service_name: str,
+    quantity_delta: int,
+    amount_delta: float,
+) -> None:
+    if quantity_delta == 0 and amount_delta == 0:
+        return
+
+    month_key = cash_month_key(cash_date)
+    year_number, month_number = parse_month_key(month_key)
+    ensure_month(connection, year_number, month_number)
+    canonical_service, qty_field, unit_field = CASH_SERVICE_CONFIG[normalize_text(service_name)]
+    row = connection.execute(
+        """
+        SELECT *
+        FROM records
+        WHERE month_key = ? AND partner_name = ?
+        ORDER BY id
+        LIMIT 1
+        """,
+        (month_key, customer_name),
+    ).fetchone()
+
+    if row is None:
+        if quantity_delta <= 0:
+            return
+        record = {
+            "month_key": month_key,
+            "year_number": year_number,
+            "month_number": month_number,
+            "period_label": label_from_month(month_number),
+            "partner_name": customer_name,
+            "transferencia_qty": 0,
+            "caminhao_transferencia_qty": 0,
+            "combo_transferencia_qty": 0,
+            "cautelar_qty": 0,
+            "pesquisa_qty": 0,
+            "unit_transferencia": 0,
+            "unit_caminhao_transferencia": 0,
+            "unit_combo_transferencia": 0,
+            "unit_cautelar": 0,
+            "unit_pesquisa": 0,
+        }
+        record[qty_field] = quantity_delta
+        record[unit_field] = amount_delta / quantity_delta if quantity_delta else 0
+        record["total_value"] = calculate_total(record)
+        connection.execute(
+            """
+            INSERT INTO records (
+                month_key,
+                reference_date,
+                period_label,
+                period_sort,
+                partner_name,
+                transferencia_qty,
+                caminhao_transferencia_qty,
+                combo_transferencia_qty,
+                cautelar_qty,
+                pesquisa_qty,
+                unit_transferencia,
+                unit_caminhao_transferencia,
+                unit_combo_transferencia,
+                unit_cautelar,
+                unit_pesquisa,
+                total_value,
+                updated_at
+            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                record["month_key"],
+                record["period_label"],
+                record["partner_name"],
+                record["transferencia_qty"],
+                record["caminhao_transferencia_qty"],
+                record["combo_transferencia_qty"],
+                record["cautelar_qty"],
+                record["pesquisa_qty"],
+                record["unit_transferencia"],
+                record["unit_caminhao_transferencia"],
+                record["unit_combo_transferencia"],
+                record["unit_cautelar"],
+                record["unit_pesquisa"],
+                record["total_value"],
+            ),
+        )
+        return
+
+    record = monthly_record_payload_from_row(row)
+    current_qty = int(record[qty_field] or 0)
+    current_total = float(current_qty * float(record[unit_field] or 0))
+    next_qty = max(0, current_qty + quantity_delta)
+    next_total = max(0.0, current_total + amount_delta)
+    record[qty_field] = next_qty
+    record[unit_field] = next_total / next_qty if next_qty else 0
+    total_value = calculate_total(record)
+    connection.execute(
+        f"""
+        UPDATE records
+        SET
+            {qty_field} = ?,
+            {unit_field} = ?,
+            total_value = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (record[qty_field], record[unit_field], total_value, row["id"]),
+    )
+
+
+def sync_cash_entry_to_monthly(connection: sqlite3.Connection, row: sqlite3.Row, direction: int) -> None:
+    if row["flow_type"] != "entrada":
+        return
+    apply_monthly_cash_delta(
+        connection,
+        row["cash_date"],
+        row["customer_name"],
+        row["service_name"],
+        direction,
+        direction * float(row["amount"] or 0),
+    )
 
 
 def serialize_main_record(row: sqlite3.Row) -> dict[str, Any]:
@@ -880,6 +1040,20 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
             total_in += value
             payment_totals[row["payment_group"] if row["payment_group"] in payment_totals else "outras"] += value
 
+    vault_row = connection.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE
+                WHEN flow_type = 'entrada' AND payment_group = 'dinheiro' THEN amount
+                WHEN flow_type = 'saida' THEN -amount
+                ELSE 0
+            END), 0) AS vault_balance
+        FROM cash_entries
+        WHERE cash_date <= ?
+        """,
+        (cash_date,),
+    ).fetchone()
+
     return {
         "cash_date": cash_date,
         "display_date": format_display_date(cash_date),
@@ -887,6 +1061,7 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
         "total_in": round(total_in, 2),
         "total_out": round(total_out, 2),
         "result": round(total_in - total_out, 2),
+        "vault_balance": round(float(vault_row["vault_balance"] or 0), 2),
         "entry_count": entry_count,
     }
 
@@ -966,54 +1141,6 @@ def get_cash_tree(connection: sqlite3.Connection) -> list[dict[str, Any]]:
         }
         for year_node in tree.values()
     ]
-
-
-def get_final_report_payload(connection: sqlite3.Connection) -> dict[str, Any]:
-    rows = connection.execute(
-        """
-        SELECT
-            e.customer_name,
-            e.service_name,
-            COUNT(*) AS quantity,
-            COALESCE(SUM(CASE WHEN e.flow_type = 'saida' THEN -e.amount ELSE e.amount END), 0) AS total_value,
-            MIN(e.cash_date) AS first_date,
-            MAX(e.cash_date) AS last_date
-        FROM cash_entries e
-        JOIN cash_days d ON d.cash_date = e.cash_date
-        WHERE d.finalized = 1
-        GROUP BY e.customer_name, e.service_name
-        ORDER BY total_value DESC, quantity DESC, e.customer_name ASC, e.service_name ASC
-        """
-    ).fetchall()
-    summary = connection.execute(
-        """
-        SELECT
-            COUNT(*) AS quantity,
-            COALESCE(SUM(CASE WHEN e.flow_type = 'saida' THEN -e.amount ELSE e.amount END), 0) AS total_value,
-            COUNT(DISTINCT e.cash_date) AS day_count
-        FROM cash_entries e
-        JOIN cash_days d ON d.cash_date = e.cash_date
-        WHERE d.finalized = 1
-        """
-    ).fetchone()
-    return {
-        "summary": {
-            "quantity": summary["quantity"],
-            "total_value": summary["total_value"],
-            "day_count": summary["day_count"],
-        },
-        "rows": [
-            {
-                "customer_name": row["customer_name"],
-                "service_name": row["service_name"],
-                "quantity": row["quantity"],
-                "total_value": row["total_value"],
-                "first_date": format_display_date(row["first_date"]),
-                "last_date": format_display_date(row["last_date"]),
-            }
-            for row in rows
-        ],
-    }
 
 
 def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
@@ -1300,6 +1427,7 @@ def init_db() -> None:
                 payment_method TEXT NOT NULL,
                 payment_group TEXT NOT NULL DEFAULT 'outras',
                 flow_type TEXT NOT NULL DEFAULT 'entrada',
+                synced_to_monthly INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (cash_date) REFERENCES cash_days (cash_date)
@@ -1318,6 +1446,9 @@ def init_db() -> None:
             connection.execute("ALTER TABLE records ADD COLUMN caminhao_transferencia_qty INTEGER NOT NULL DEFAULT 0")
         if "unit_caminhao_transferencia" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN unit_caminhao_transferencia REAL NOT NULL DEFAULT 0")
+        cash_columns = {row["name"] for row in connection.execute("PRAGMA table_info(cash_entries)").fetchall()}
+        if "synced_to_monthly" not in cash_columns:
+            connection.execute("ALTER TABLE cash_entries ADD COLUMN synced_to_monthly INTEGER NOT NULL DEFAULT 0")
 
         connection.executescript(
             """
@@ -1467,11 +1598,6 @@ def index() -> str:
 @app.route("/cash-flow")
 def cash_flow_page() -> str:
     return render_template("cash_flow.html")
-
-
-@app.route("/final-report")
-def final_report_page() -> str:
-    return render_template("final_report.html")
 
 
 @app.route("/comparison")
@@ -1631,8 +1757,9 @@ def create_cash_entry(cash_date: str):
                 payment_method,
                 payment_group,
                 flow_type,
+                synced_to_monthly,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
             """,
             (
                 cash_date,
@@ -1645,6 +1772,9 @@ def create_cash_entry(cash_date: str):
                 entry["flow_type"],
             ),
         )
+        row = connection.execute("SELECT * FROM cash_entries WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        sync_cash_entry_to_monthly(connection, row, 1)
+        connection.execute("UPDATE cash_entries SET synced_to_monthly = 1 WHERE id = ?", (row["id"],))
         connection.execute("UPDATE cash_days SET updated_at = CURRENT_TIMESTAMP WHERE cash_date = ?", (cash_date,))
         row = connection.execute("SELECT * FROM cash_entries WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return jsonify(serialize_cash_entry(row)), 201
@@ -1661,6 +1791,8 @@ def update_cash_entry(entry_id: int):
         existing = connection.execute("SELECT * FROM cash_entries WHERE id = ?", (entry_id,)).fetchone()
         if existing is None:
             return jsonify({"error": "Lancamento nao encontrado."}), 404
+        if existing["synced_to_monthly"]:
+            sync_cash_entry_to_monthly(connection, existing, -1)
         connection.execute(
             """
             UPDATE cash_entries
@@ -1672,6 +1804,7 @@ def update_cash_entry(entry_id: int):
                 payment_method = ?,
                 payment_group = ?,
                 flow_type = ?,
+                synced_to_monthly = 0,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
@@ -1686,6 +1819,9 @@ def update_cash_entry(entry_id: int):
                 entry_id,
             ),
         )
+        row = connection.execute("SELECT * FROM cash_entries WHERE id = ?", (entry_id,)).fetchone()
+        sync_cash_entry_to_monthly(connection, row, 1)
+        connection.execute("UPDATE cash_entries SET synced_to_monthly = 1 WHERE id = ?", (entry_id,))
         connection.execute("UPDATE cash_days SET updated_at = CURRENT_TIMESTAMP WHERE cash_date = ?", (existing["cash_date"],))
         row = connection.execute("SELECT * FROM cash_entries WHERE id = ?", (entry_id,)).fetchone()
     return jsonify(serialize_cash_entry(row))
@@ -1694,9 +1830,11 @@ def update_cash_entry(entry_id: int):
 @app.delete("/api/cash-flow/entries/<int:entry_id>")
 def delete_cash_entry(entry_id: int):
     with get_db() as connection:
-        existing = connection.execute("SELECT cash_date FROM cash_entries WHERE id = ?", (entry_id,)).fetchone()
+        existing = connection.execute("SELECT * FROM cash_entries WHERE id = ?", (entry_id,)).fetchone()
         if existing is None:
             return jsonify({"error": "Lancamento nao encontrado."}), 404
+        if existing["synced_to_monthly"]:
+            sync_cash_entry_to_monthly(connection, existing, -1)
         connection.execute("DELETE FROM cash_entries WHERE id = ?", (entry_id,))
         connection.execute("UPDATE cash_days SET updated_at = CURRENT_TIMESTAMP WHERE cash_date = ?", (existing["cash_date"],))
     return jsonify({"message": "Lancamento excluido com sucesso."})
@@ -1710,6 +1848,13 @@ def finalize_cash_day(cash_date: str):
         return jsonify({"error": str(exc)}), 400
     with get_db() as connection:
         ensure_cash_day(connection, cash_date)
+        unsynced_rows = connection.execute(
+            "SELECT * FROM cash_entries WHERE cash_date = ? AND synced_to_monthly = 0",
+            (cash_date,),
+        ).fetchall()
+        for row in unsynced_rows:
+            sync_cash_entry_to_monthly(connection, row, 1)
+            connection.execute("UPDATE cash_entries SET synced_to_monthly = 1 WHERE id = ?", (row["id"],))
         connection.execute(
             """
             UPDATE cash_days
@@ -1740,12 +1885,6 @@ def reopen_cash_day(cash_date: str):
         )
         payload = get_cash_day_payload(connection, cash_date)
     return jsonify(payload)
-
-
-@app.get("/api/final-report")
-def final_report_data():
-    with get_db() as connection:
-        return jsonify(get_final_report_payload(connection))
 
 
 @app.get("/api/export/<string:month_key>.xlsx")

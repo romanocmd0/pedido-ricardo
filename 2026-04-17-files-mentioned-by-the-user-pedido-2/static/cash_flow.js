@@ -28,6 +28,7 @@ const cashElements = {
   credito: document.querySelector("#cash-total-credito"),
   pix: document.querySelector("#cash-total-pix"),
   outras: document.querySelector("#cash-total-outras"),
+  vaultBalance: document.querySelector("#cash-vault-balance"),
   totalIn: document.querySelector("#cash-total-in"),
   totalOut: document.querySelector("#cash-total-out"),
 };
@@ -70,6 +71,7 @@ function renderSummary(summary) {
   cashElements.credito.textContent = formatCurrency(summary.payment_totals.cartao_credito);
   cashElements.pix.textContent = formatCurrency(summary.payment_totals.pix);
   cashElements.outras.textContent = formatCurrency(summary.payment_totals.outras);
+  cashElements.vaultBalance.textContent = formatCurrency(summary.vault_balance);
   cashElements.totalIn.textContent = formatCurrency(summary.total_in);
   cashElements.totalOut.textContent = formatCurrency(summary.total_out);
 }
