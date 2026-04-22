@@ -14,6 +14,7 @@ const cashElements = {
   exportPdfButton: document.querySelector("#export-cash-pdf-button"),
   finalizeButton: document.querySelector("#finalize-cash-button"),
   reopenButton: document.querySelector("#reopen-cash-button"),
+  deleteDayButton: document.querySelector("#delete-cash-day-button"),
   form: document.querySelector("#cash-entry-form"),
   entryId: document.querySelector("#cash-entry-id"),
   customerName: document.querySelector("#cash-customer-name"),
@@ -92,6 +93,32 @@ function renderSummary(summary) {
   cashElements.totalIn.textContent = formatCurrency(summary.total_in);
   cashElements.totalOut.textContent = formatCurrency(summary.total_out);
   cashElements.totalDeposit.textContent = formatCurrency(summary.total_deposit);
+}
+
+function renderDeletedCashDay() {
+  cashState.day = null;
+  cashState.entries = [];
+  cashElements.title.textContent = "Caixa excluido";
+  cashElements.result.textContent = formatCurrency(0);
+  cashElements.status.textContent = "Excluido";
+  renderSummary({
+    display_date: cashState.activeDate.split("-").reverse().join("/"),
+    result: 0,
+    payment_totals: {
+      dinheiro: 0,
+      cartao_debito: 0,
+      cartao_credito: 0,
+      pix: 0,
+      outras: 0,
+    },
+    vault_balance: 0,
+    total_in: 0,
+    total_out: 0,
+    total_deposit: 0,
+  });
+  cashElements.title.textContent = "Caixa excluido";
+  cashElements.status.textContent = "Excluido";
+  cashElements.body.innerHTML = '<tr><td colspan="7" class="empty-state">Caixa excluido. Escolha uma data no arquivo ou abra um novo caixa.</td></tr>';
 }
 
 function renderEntries() {
@@ -240,6 +267,21 @@ async function deleteEntry(entryId) {
   await loadDay();
 }
 
+async function deleteCashDay() {
+  if (!window.confirm("Tem certeza que deseja excluir este caixa?")) return;
+
+  const response = await fetch(`/api/cash-flow/day/${cashState.activeDate}`, { method: "DELETE" });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel excluir o caixa.");
+    return;
+  }
+
+  resetCashForm();
+  renderDeletedCashDay();
+  await loadTree();
+}
+
 async function setFinalized(finalized) {
   const endpoint = finalized ? "finalize" : "reopen";
   const response = await fetch(`/api/cash-flow/day/${cashState.activeDate}/${endpoint}`, { method: "POST" });
@@ -268,6 +310,7 @@ function setupEvents() {
   });
   cashElements.finalizeButton.addEventListener("click", () => setFinalized(true));
   cashElements.reopenButton.addEventListener("click", () => setFinalized(false));
+  cashElements.deleteDayButton.addEventListener("click", deleteCashDay);
 }
 
 cashElements.dateInput.value = cashState.activeDate;

@@ -1926,6 +1926,25 @@ def delete_cash_entry(entry_id: int):
     return jsonify({"message": "Lancamento excluido com sucesso."})
 
 
+@app.delete("/api/cash-flow/day/<string:cash_date>")
+def delete_cash_day(cash_date: str):
+    try:
+        parse_cash_date(cash_date)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    with get_db() as connection:
+        day = connection.execute("SELECT cash_date FROM cash_days WHERE cash_date = ?", (cash_date,)).fetchone()
+        if day is None:
+            return jsonify({"error": "Caixa nao encontrado."}), 404
+        entries = connection.execute("SELECT * FROM cash_entries WHERE cash_date = ?", (cash_date,)).fetchall()
+        for entry in entries:
+            if entry["synced_to_monthly"]:
+                sync_cash_entry_to_monthly(connection, entry, -1)
+        connection.execute("DELETE FROM cash_entries WHERE cash_date = ?", (cash_date,))
+        connection.execute("DELETE FROM cash_days WHERE cash_date = ?", (cash_date,))
+    return jsonify({"message": "Caixa excluido com sucesso."})
+
+
 @app.post("/api/cash-flow/day/<string:cash_date>/finalize")
 def finalize_cash_day(cash_date: str):
     try:
