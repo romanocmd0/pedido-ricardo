@@ -65,6 +65,21 @@ function resetCashForm() {
   cashElements.flowType.value = "entrada";
 }
 
+function setSelectValue(select, value) {
+  const rawValue = String(value || "");
+  const option = Array.from(select.options).find((item) => item.value.toLowerCase() === rawValue.toLowerCase());
+  if (option) {
+    select.value = option.value;
+    return;
+  }
+  if (rawValue) {
+    const legacyOption = new Option(rawValue, rawValue, true, true);
+    select.add(legacyOption);
+  } else {
+    select.value = "";
+  }
+}
+
 function renderSummary(summary) {
   cashElements.title.textContent = `Caixa de ${summary.display_date}`;
   cashElements.result.textContent = formatCurrency(summary.result);
@@ -167,7 +182,7 @@ function editEntry(entry) {
   cashElements.plate.value = entry.plate || "";
   cashElements.serviceName.value = entry.service_name;
   cashElements.amount.value = entry.amount;
-  cashElements.paymentMethod.value = entry.payment_method;
+  setSelectValue(cashElements.paymentMethod, entry.payment_method);
   cashElements.flowType.value = entry.flow_type;
   cashElements.customerName.focus();
 }

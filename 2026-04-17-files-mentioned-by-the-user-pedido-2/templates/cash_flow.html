@@ -89,7 +89,14 @@
               </label>
               <label class="field">
                 <span>Forma de pagamento</span>
-                <input id="cash-payment-method" type="text" placeholder="Dinheiro, PIX, cartao..." required />
+                <select id="cash-payment-method" required>
+                  <option value="">Selecione</option>
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="Pix">Pix</option>
+                  <option value="Debito">Debito</option>
+                  <option value="Credito">Credito</option>
+                  <option value="Rec">Rec</option>
+                </select>
               </label>
               <label class="field">
                 <span>Tipo</span>
