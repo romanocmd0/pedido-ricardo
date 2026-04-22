@@ -76,6 +76,10 @@ MIN_MONTH_KEY = "2026-04"
 MAX_MONTH_KEY = "2050-12"
 CASH_SERVICE_CONFIG = {
     "TRANSFERENCIA": ("Transferencia", "transferencia_qty", "unit_transferencia"),
+    "TRANSF. DE CAMINHAO": ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia"),
+    "TRANSFERENCIA DE CAMINHAO": ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia"),
+    "TRANSF. DO COMBO": ("Transf. do Combo", "combo_transferencia_qty", "unit_combo_transferencia"),
+    "TRANSF. DE COMBO": ("Transf. do Combo", "combo_transferencia_qty", "unit_combo_transferencia"),
     "CAUTELAR": ("Cautelar", "cautelar_qty", "unit_cautelar"),
     "PESQUISA": ("Pesquisa", "pesquisa_qty", "unit_pesquisa"),
 }
@@ -317,7 +321,7 @@ def ensure_cash_day(connection: sqlite3.Connection, cash_date: str) -> None:
 def normalize_cash_service(value: str) -> str:
     normalized = normalize_text(value)
     if normalized not in CASH_SERVICE_CONFIG:
-        raise ValueError("Selecione um servico valido: Transferencia, Cautelar ou Pesquisa.")
+        raise ValueError("Selecione um servico valido.")
     return CASH_SERVICE_CONFIG[normalized][0]
 
 
@@ -326,7 +330,7 @@ def validate_cash_entry_payload(payload: dict[str, Any]) -> dict[str, Any]:
     service_name = (payload.get("service_name") or "").strip()
     payment_method = (payload.get("payment_method") or "").strip()
     flow_type = normalize_text(payload.get("flow_type") or "entrada").lower()
-    if flow_type not in {"entrada", "saida"}:
+    if flow_type not in {"entrada", "saida", "deposito"}:
         flow_type = "entrada"
 
     if not customer_name:
@@ -1030,11 +1034,15 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
     }
     total_in = 0.0
     total_out = 0.0
+    total_deposit = 0.0
     entry_count = 0
     for row in rows:
         value = float(row["total_value"] or 0)
         entry_count += int(row["entry_count"] or 0)
         if row["flow_type"] == "saida":
+            total_out += value
+        elif row["flow_type"] == "deposito":
+            total_deposit += value
             total_out += value
         else:
             total_in += value
@@ -1045,7 +1053,7 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
         SELECT
             COALESCE(SUM(CASE
                 WHEN flow_type = 'entrada' AND payment_group = 'dinheiro' THEN amount
-                WHEN flow_type = 'saida' THEN -amount
+                WHEN flow_type IN ('saida', 'deposito') THEN -amount
                 ELSE 0
             END), 0) AS vault_balance
         FROM cash_entries
@@ -1060,6 +1068,7 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
         "payment_totals": payment_totals,
         "total_in": round(total_in, 2),
         "total_out": round(total_out, 2),
+        "total_deposit": round(total_deposit, 2),
         "result": round(total_in - total_out, 2),
         "vault_balance": round(float(vault_row["vault_balance"] or 0), 2),
         "entry_count": entry_count,
@@ -1345,6 +1354,83 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         ],
         repeatRows=1,
     )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FFFDF7")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(table)
+    document.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+def build_cash_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
+    buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=10 * mm,
+        rightMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+    styles = getSampleStyleSheet()
+    day = payload["day"]
+    summary = payload["summary"]
+    story = [Paragraph(f"Fluxo de Caixa - {day['display_date']}", styles["Title"]), Spacer(1, 8)]
+
+    summary_data = [
+        ["Metrica", "Valor"],
+        ["Dinheiro", f"R$ {summary['payment_totals']['dinheiro']:.2f}"],
+        ["Cartao debito", f"R$ {summary['payment_totals']['cartao_debito']:.2f}"],
+        ["Cartao credito", f"R$ {summary['payment_totals']['cartao_credito']:.2f}"],
+        ["PIX", f"R$ {summary['payment_totals']['pix']:.2f}"],
+        ["Outras formas", f"R$ {summary['payment_totals']['outras']:.2f}"],
+        ["Total de entradas", f"R$ {summary['total_in']:.2f}"],
+        ["Total de saidas", f"R$ {summary['total_out']:.2f}"],
+        ["Depositos", f"R$ {summary['total_deposit']:.2f}"],
+        ["Resultado do dia", f"R$ {summary['result']:.2f}"],
+        ["Cofre atual", f"R$ {summary['vault_balance']:.2f}"],
+        ["Status", "Finalizado" if day["finalized"] else "Aberto"],
+    ]
+    summary_table = Table(summary_data, colWidths=[70 * mm, 45 * mm])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0E2A47")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D4AF37")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F8F4E6")),
+            ]
+        )
+    )
+    story.extend([summary_table, Spacer(1, 10)])
+
+    table_data = [["Cliente", "Placa", "Servico", "Valor", "Pagamento", "Tipo"]]
+    for entry in payload["entries"]:
+        flow_label = {"entrada": "Entrada", "saida": "Saida", "deposito": "Deposito"}.get(entry["flow_type"], "Entrada")
+        table_data.append(
+            [
+                entry["customer_name"],
+                entry["plate"],
+                entry["service_name"],
+                f"R$ {entry['amount']:.2f}",
+                entry["payment_method"],
+                flow_label,
+            ]
+        )
+
+    table = Table(table_data, colWidths=[54 * mm, 28 * mm, 38 * mm, 26 * mm, 42 * mm, 28 * mm], repeatRows=1)
     table.setStyle(
         TableStyle(
             [
@@ -1885,6 +1971,23 @@ def reopen_cash_day(cash_date: str):
         )
         payload = get_cash_day_payload(connection, cash_date)
     return jsonify(payload)
+
+
+@app.get("/api/cash-flow/day/<string:cash_date>.pdf")
+def export_cash_day_pdf(cash_date: str):
+    try:
+        parse_cash_date(cash_date)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    with get_db() as connection:
+        payload = get_cash_day_payload(connection, cash_date)
+    buffer = build_cash_pdf_report(payload)
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"fluxo-caixa-{cash_date}.pdf",
+    )
 
 
 @app.get("/api/export/<string:month_key>.xlsx")

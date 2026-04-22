@@ -9,8 +9,8 @@
   <body>
     <main class="layout">
       <nav class="top-nav">
-        <a class="nav-button" href="/">Relatorio Mensal</a>
         <a class="nav-button is-active" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button" href="/">Relatorio Mensal</a>
         <a class="nav-button" href="/comparison">Comparacao de Meses</a>
         <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
       </nav>
@@ -55,6 +55,7 @@
               <h2>Lancamentos do dia</h2>
             </div>
             <div class="form-actions">
+              <button id="export-cash-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
               <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
               <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
             </div>
@@ -76,6 +77,8 @@
                 <select id="cash-service-name" required>
                   <option value="">Selecione</option>
                   <option value="Transferencia">Transferencia</option>
+                  <option value="Transf. de Caminhao">Transf. de Caminhao</option>
+                  <option value="Transf. do Combo">Transf. do Combo</option>
                   <option value="Cautelar">Cautelar</option>
                   <option value="Pesquisa">Pesquisa</option>
                 </select>
@@ -93,6 +96,7 @@
                 <select id="cash-flow-type">
                   <option value="entrada">Entrada</option>
                   <option value="saida">Saida</option>
+                  <option value="deposito">Deposito</option>
                 </select>
               </label>
             </div>
@@ -134,6 +138,10 @@
             <article class="panel stat-card">
               <span class="section-tag">Saida</span>
               <strong id="cash-total-out">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Depositos</span>
+              <strong id="cash-total-deposit">R$ 0,00</strong>
             </article>
           </section>
 

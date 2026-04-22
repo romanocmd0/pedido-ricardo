@@ -258,7 +258,11 @@ select:focus { outline: 2px solid rgba(212,175,55,0.18); border-color: var(--acc
 #client-view-mode,
 #client-view-mode option,
 #client-month-select,
-#client-month-select option {
+#client-month-select option,
+#cash-service-name,
+#cash-service-name option,
+#cash-flow-type,
+#cash-flow-type option {
   background: #ffffff;
   color: #111111;
 }

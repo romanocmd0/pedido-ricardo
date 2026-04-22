@@ -11,6 +11,7 @@ Sistema web em Flask para controle mensal de pedidos com:
 - modulo de fluxo de caixa diario com arquivo por ano, mes e dia;
 - integracao automatica do fluxo de caixa com o relatorio mensal;
 - controle de cofre calculado por entradas em dinheiro e saidas;
+- exportacao em PDF por caixa diario;
 - area separada de comparacao entre meses;
 - area separada de comparacao entre clientes;
 - dashboard visual com evolucao e comparacao por tipo.

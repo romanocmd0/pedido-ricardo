@@ -11,6 +11,7 @@ const cashElements = {
   title: document.querySelector("#cash-day-title"),
   result: document.querySelector("#cash-result"),
   status: document.querySelector("#cash-status"),
+  exportPdfButton: document.querySelector("#export-cash-pdf-button"),
   finalizeButton: document.querySelector("#finalize-cash-button"),
   reopenButton: document.querySelector("#reopen-cash-button"),
   form: document.querySelector("#cash-entry-form"),
@@ -31,6 +32,7 @@ const cashElements = {
   vaultBalance: document.querySelector("#cash-vault-balance"),
   totalIn: document.querySelector("#cash-total-in"),
   totalOut: document.querySelector("#cash-total-out"),
+  totalDeposit: document.querySelector("#cash-total-deposit"),
 };
 
 function formatCurrency(value) {
@@ -74,6 +76,7 @@ function renderSummary(summary) {
   cashElements.vaultBalance.textContent = formatCurrency(summary.vault_balance);
   cashElements.totalIn.textContent = formatCurrency(summary.total_in);
   cashElements.totalOut.textContent = formatCurrency(summary.total_out);
+  cashElements.totalDeposit.textContent = formatCurrency(summary.total_deposit);
 }
 
 function renderEntries() {
@@ -91,7 +94,7 @@ function renderEntries() {
       <td>${escapeHtml(entry.service_name)}</td>
       <td>${formatCurrency(entry.amount)}</td>
       <td>${escapeHtml(entry.payment_method)}</td>
-      <td>${entry.flow_type === "saida" ? "Saida" : "Entrada"}</td>
+      <td>${entry.flow_type === "deposito" ? "Deposito" : entry.flow_type === "saida" ? "Saida" : "Entrada"}</td>
       <td></td>
     `;
     const actions = document.createElement("div");
@@ -245,6 +248,9 @@ function setupEvents() {
   });
   cashElements.form.addEventListener("submit", saveEntry);
   cashElements.clearButton.addEventListener("click", resetCashForm);
+  cashElements.exportPdfButton.addEventListener("click", () => {
+    window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");
+  });
   cashElements.finalizeButton.addEventListener("click", () => setFinalized(true));
   cashElements.reopenButton.addEventListener("click", () => setFinalized(false));
 }
