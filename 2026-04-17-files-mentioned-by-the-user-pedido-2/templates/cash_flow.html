@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fluxo de Caixa</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="layout">
+      <nav class="top-nav">
+        <a class="nav-button" href="/">Relatorio Mensal</a>
+        <a class="nav-button is-active" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button" href="/final-report">Relatorio Final</a>
+        <a class="nav-button" href="/comparison">Comparacao de Meses</a>
+        <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
+      </nav>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Caixa diario</p>
+          <h1 id="cash-day-title">Fluxo de Caixa</h1>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="hero-label">Resultado do dia</span>
+            <strong id="cash-result">R$ 0,00</strong>
+          </div>
+          <div>
+            <span class="hero-label">Status</span>
+            <strong id="cash-status">Aberto</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="cash-layout">
+        <aside class="panel cash-tree-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Arquivo</p>
+              <h2>Ano / Mes / Dia</h2>
+            </div>
+          </div>
+          <label class="field">
+            <span>Criar ou abrir data</span>
+            <input id="cash-date-input" type="date" />
+          </label>
+          <button id="open-cash-day-button" class="primary-button" type="button">Abrir caixa</button>
+          <div id="cash-tree" class="cash-tree"></div>
+        </aside>
+
+        <section class="panel cash-main-panel">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Alimentacao manual</p>
+              <h2>Lancamentos do dia</h2>
+            </div>
+            <div class="form-actions">
+              <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
+              <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
+            </div>
+          </div>
+
+          <form id="cash-entry-form" class="cash-entry-form">
+            <input id="cash-entry-id" type="hidden" />
+            <div class="cash-form-grid">
+              <label class="field">
+                <span>Nome do cliente</span>
+                <input id="cash-customer-name" type="text" required />
+              </label>
+              <label class="field">
+                <span>Placa</span>
+                <input id="cash-plate" type="text" />
+              </label>
+              <label class="field">
+                <span>Servico</span>
+                <input id="cash-service-name" type="text" required />
+              </label>
+              <label class="field">
+                <span>Valor</span>
+                <input id="cash-amount" type="number" min="0" step="0.01" required />
+              </label>
+              <label class="field">
+                <span>Forma de pagamento</span>
+                <input id="cash-payment-method" type="text" placeholder="Dinheiro, PIX, cartao..." required />
+              </label>
+              <label class="field">
+                <span>Tipo</span>
+                <select id="cash-flow-type">
+                  <option value="entrada">Entrada</option>
+                  <option value="saida">Saida</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Salvar lancamento</button>
+              <button id="clear-cash-form-button" class="secondary-button" type="button">Limpar</button>
+            </div>
+          </form>
+
+          <section class="summary-grid cash-summary-grid">
+            <article class="panel stat-card">
+              <span class="section-tag">Dinheiro</span>
+              <strong id="cash-total-dinheiro">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Cartao debito</span>
+              <strong id="cash-total-debito">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Cartao credito</span>
+              <strong id="cash-total-credito">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">PIX</span>
+              <strong id="cash-total-pix">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Outras</span>
+              <strong id="cash-total-outras">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Entrada</span>
+              <strong id="cash-total-in">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Saida</span>
+              <strong id="cash-total-out">R$ 0,00</strong>
+            </article>
+          </section>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Placa</th>
+                  <th>Servico</th>
+                  <th>Valor</th>
+                  <th>Pagamento</th>
+                  <th>Tipo</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="cash-entries-body">
+                <tr>
+                  <td colspan="7" class="empty-state">Selecione uma data para carregar o caixa.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='cash_flow.js') }}" defer></script>
+  </body>
+</html>

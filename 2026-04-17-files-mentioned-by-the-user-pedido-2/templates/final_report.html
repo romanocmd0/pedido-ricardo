@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Relatorio Final</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="layout">
+      <nav class="top-nav">
+        <a class="nav-button" href="/">Relatorio Mensal</a>
+        <a class="nav-button" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button is-active" href="/final-report">Relatorio Final</a>
+        <a class="nav-button" href="/comparison">Comparacao de Meses</a>
+        <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
+      </nav>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Consolidado</p>
+          <h1>Relatorio Final</h1>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="hero-label">Total consolidado</span>
+            <strong id="final-total-value">R$ 0,00</strong>
+          </div>
+          <div>
+            <span class="hero-label">Quantidade</span>
+            <strong id="final-total-quantity">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Caixas finalizados</p>
+            <h2>Clientes e servicos consolidados</h2>
+          </div>
+          <button id="refresh-final-report-button" class="secondary-button" type="button">Atualizar</button>
+        </div>
+        <p class="inline-hint">Somente caixas diarios finalizados entram neste relatorio. Editar ou excluir lancamentos finalizados atualiza estes totais automaticamente.</p>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Servico</th>
+                <th>Quantidade</th>
+                <th>Valor total</th>
+                <th>Primeiro dia</th>
+                <th>Ultimo dia</th>
+              </tr>
+            </thead>
+            <tbody id="final-report-body">
+              <tr>
+                <td colspan="6" class="empty-state">Carregando relatorio final...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='final_report.js') }}" defer></script>
+  </body>
+</html>

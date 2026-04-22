@@ -8,6 +8,8 @@ Sistema web em Flask para controle mensal de pedidos com:
 - exportacao em Excel e PDF;
 - exportacao direta por aba/mes em Excel e PDF;
 - tela de login protegendo o acesso ao sistema;
+- modulo de fluxo de caixa diario com arquivo por ano, mes e dia;
+- relatorio final consolidado a partir dos caixas finalizados;
 - area separada de comparacao entre meses;
 - area separada de comparacao entre clientes;
 - dashboard visual com evolucao e comparacao por tipo.
@@ -16,6 +18,8 @@ Sistema web em Flask para controle mensal de pedidos com:
 
 - `/`: tela principal
 - `/login`: tela de acesso protegido
+- `/cash-flow`: fluxo de caixa diario
+- `/final-report`: relatorio final consolidado
 - `/comparison`: analise comparativa entre meses
 - `/client-comparison`: analise comparativa entre clientes
 - `/api/records`: dados da tela principal
@@ -43,6 +47,26 @@ Tabela `records`
 - `unit_cautelar`
 - `unit_pesquisa`
 - `total_value`
+
+Tabela `cash_days`
+
+- `cash_date`
+- `year_number`
+- `month_number`
+- `day_number`
+- `finalized`
+- `finalized_at`
+
+Tabela `cash_entries`
+
+- `cash_date`
+- `customer_name`
+- `plate`
+- `service_name`
+- `amount`
+- `payment_method`
+- `payment_group`
+- `flow_type`
 
 ## Observacoes
 
