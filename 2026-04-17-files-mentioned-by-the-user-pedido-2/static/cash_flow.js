@@ -17,11 +17,15 @@ const cashElements = {
   reopenButton: document.querySelector("#reopen-cash-button"),
   deleteDayButton: document.querySelector("#delete-cash-day-button"),
   form: document.querySelector("#cash-entry-form"),
+  partnerPaymentForm: document.querySelector("#partner-payment-form"),
   entryId: document.querySelector("#cash-entry-id"),
   customerName: document.querySelector("#cash-customer-name"),
   plate: document.querySelector("#cash-plate"),
   serviceName: document.querySelector("#cash-service-name"),
   amount: document.querySelector("#cash-amount"),
+  partnerPaymentName: document.querySelector("#partner-payment-name"),
+  partnerPaymentDescription: document.querySelector("#partner-payment-description"),
+  partnerPaymentAmount: document.querySelector("#partner-payment-amount"),
   paymentMethod: document.querySelector("#cash-payment-method"),
   flowType: document.querySelector("#cash-flow-type"),
   clearButton: document.querySelector("#clear-cash-form-button"),
@@ -35,6 +39,7 @@ const cashElements = {
   totalIn: document.querySelector("#cash-total-in"),
   totalOut: document.querySelector("#cash-total-out"),
   totalDeposit: document.querySelector("#cash-total-deposit"),
+  totalPartnerPayment: document.querySelector("#cash-total-partner-payment"),
 };
 
 function formatCurrency(value) {
@@ -61,10 +66,26 @@ function currentPayload() {
   };
 }
 
+function partnerPaymentPayload() {
+  const description = cashElements.partnerPaymentDescription.value.trim();
+  return {
+    customer_name: cashElements.partnerPaymentName.value.trim(),
+    plate: description,
+    service_name: "Pagamento Parceiros",
+    amount: Number(cashElements.partnerPaymentAmount.value || 0),
+    payment_method: "Pagamento Parceiros",
+    flow_type: "pagamento_parceiros",
+  };
+}
+
 function resetCashForm() {
   cashElements.form.reset();
   cashElements.entryId.value = "";
   cashElements.flowType.value = "entrada";
+}
+
+function resetPartnerPaymentForm() {
+  cashElements.partnerPaymentForm.reset();
 }
 
 function setSelectValue(select, value) {
@@ -94,6 +115,7 @@ function renderSummary(summary) {
   cashElements.totalIn.textContent = formatCurrency(summary.total_in);
   cashElements.totalOut.textContent = formatCurrency(summary.total_out);
   cashElements.totalDeposit.textContent = formatCurrency(summary.total_deposit);
+  cashElements.totalPartnerPayment.textContent = formatCurrency(summary.total_partner_payment);
 }
 
 function renderDeletedCashDay() {
@@ -116,6 +138,7 @@ function renderDeletedCashDay() {
     total_in: 0,
     total_out: 0,
     total_deposit: 0,
+    total_partner_payment: 0,
   });
   cashElements.title.textContent = "Caixa excluido";
   cashElements.status.textContent = "Excluido";
@@ -137,7 +160,7 @@ function renderEntries() {
       <td>${escapeHtml(entry.service_name)}</td>
       <td>${formatCurrency(entry.amount)}</td>
       <td>${escapeHtml(entry.payment_method)}</td>
-      <td>${entry.flow_type === "deposito" ? "Deposito" : entry.flow_type === "saida" ? "Saida" : "Entrada"}</td>
+      <td>${entry.flow_type === "pagamento_parceiros" ? "Pagamento Parceiros" : entry.flow_type === "deposito" ? "Deposito" : entry.flow_type === "saida" ? "Saida" : "Entrada"}</td>
       <td></td>
     `;
     const actions = document.createElement("div");
@@ -208,7 +231,7 @@ function editEntry(entry) {
   cashElements.entryId.value = entry.id;
   cashElements.customerName.value = entry.customer_name;
   cashElements.plate.value = entry.plate || "";
-  cashElements.serviceName.value = entry.service_name;
+  setSelectValue(cashElements.serviceName, entry.service_name);
   cashElements.amount.value = entry.amount;
   setSelectValue(cashElements.paymentMethod, entry.payment_method);
   cashElements.flowType.value = entry.flow_type;
@@ -254,6 +277,22 @@ async function saveEntry(event) {
     return;
   }
   resetCashForm();
+  await loadDay();
+}
+
+async function savePartnerPayment(event) {
+  event.preventDefault();
+  const response = await fetch(`/api/cash-flow/day/${cashState.activeDate}/entries`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(partnerPaymentPayload()),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel salvar o Pagamento Parceiros.");
+    return;
+  }
+  resetPartnerPaymentForm();
   await loadDay();
 }
 
@@ -305,6 +344,7 @@ function setupEvents() {
     await loadDay();
   });
   cashElements.form.addEventListener("submit", saveEntry);
+  cashElements.partnerPaymentForm.addEventListener("submit", savePartnerPayment);
   cashElements.clearButton.addEventListener("click", resetCashForm);
   cashElements.exportPdfButton.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");

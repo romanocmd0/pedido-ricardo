@@ -90,6 +90,7 @@ CASH_SERVICE_CONFIG = {
     "CAUTELAR": ("Cautelar", "cautelar_qty", "unit_cautelar"),
     "PESQUISA": ("Pesquisa", "pesquisa_qty", "unit_pesquisa"),
     "DIVERSOS": ("Diversos", None, None),
+    "PAGAMENTO PARCEIROS": ("Pagamento Parceiros", None, None),
 }
 
 app = Flask(__name__)
