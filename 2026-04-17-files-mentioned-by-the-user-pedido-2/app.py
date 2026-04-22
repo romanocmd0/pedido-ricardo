@@ -78,6 +78,9 @@ ALLOWED_SORT_COLUMNS = {
 MIN_MONTH_KEY = "2026-04"
 MAX_MONTH_KEY = "2050-12"
 PIX_KEY = "64.683.079/0001-85"
+PIX_KEY_VALUE = "64683079000185"
+PIX_MERCHANT_NAME = "CERTIVE"
+PIX_MERCHANT_CITY = "BRASIL"
 CASH_SERVICE_CONFIG = {
     "TRANSFERENCIA": ("Transferencia", "transferencia_qty", "unit_transferencia"),
     "TRANSF. DE CAMINHAO": ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia"),
@@ -134,6 +137,40 @@ def safe_filename_part(value: str) -> str:
     normalized = normalize_text(value).lower().replace(" ", "-")
     safe = "".join(character for character in normalized if character.isalnum() or character in {"-", "_"})
     return safe.strip("-") or "parceiro"
+
+
+def emv_field(field_id: str, value: str) -> str:
+    return f"{field_id}{len(value):02d}{value}"
+
+
+def crc16_ccitt(payload: str) -> str:
+    crc = 0xFFFF
+    for character in payload.encode("utf-8"):
+        crc ^= character << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
+
+
+def build_pix_payload() -> str:
+    merchant_account = emv_field("00", "br.gov.bcb.pix") + emv_field("01", PIX_KEY_VALUE)
+    payload_without_crc = "".join(
+        [
+            emv_field("00", "01"),
+            emv_field("26", merchant_account),
+            emv_field("52", "0000"),
+            emv_field("53", "986"),
+            emv_field("58", "BR"),
+            emv_field("59", PIX_MERCHANT_NAME[:25]),
+            emv_field("60", PIX_MERCHANT_CITY[:15]),
+            emv_field("62", emv_field("05", "***")),
+            "6304",
+        ]
+    )
+    return f"{payload_without_crc}{crc16_ccitt(payload_without_crc)}"
 
 
 def month_key_from_parts(year_number: int, month_number: int) -> str:
@@ -341,7 +378,7 @@ def validate_cash_entry_payload(payload: dict[str, Any]) -> dict[str, Any]:
     service_name = (payload.get("service_name") or "").strip()
     payment_method = (payload.get("payment_method") or "").strip()
     flow_type = normalize_text(payload.get("flow_type") or "entrada").lower()
-    if flow_type not in {"entrada", "saida", "deposito"}:
+    if flow_type not in {"entrada", "saida", "deposito", "pagamento_parceiros"}:
         flow_type = "entrada"
 
     if not customer_name:
@@ -1052,6 +1089,7 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
     total_in = 0.0
     total_out = 0.0
     total_deposit = 0.0
+    total_partner_payment = 0.0
     entry_count = 0
     for row in rows:
         value = float(row["total_value"] or 0)
@@ -1061,6 +1099,8 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
         elif row["flow_type"] == "deposito":
             total_deposit += value
             total_out += value
+        elif row["flow_type"] == "pagamento_parceiros":
+            total_partner_payment += value
         else:
             total_in += value
             payment_totals[row["payment_group"] if row["payment_group"] in payment_totals else "outras"] += value
@@ -1086,6 +1126,7 @@ def summarize_cash_day(connection: sqlite3.Connection, cash_date: str) -> dict[s
         "total_in": round(total_in, 2),
         "total_out": round(total_out, 2),
         "total_deposit": round(total_deposit, 2),
+        "total_partner_payment": round(total_partner_payment, 2),
         "result": round(total_in - total_out, 2),
         "vault_balance": round(float(vault_row["vault_balance"] or 0), 2),
         "entry_count": entry_count,
@@ -1141,6 +1182,7 @@ def get_cash_month_payload(connection: sqlite3.Connection, month_key: str) -> di
         "total_in": 0.0,
         "total_out": 0.0,
         "total_deposit": 0.0,
+        "total_partner_payment": 0.0,
         "result": 0.0,
         "entry_count": 0,
     }
@@ -1157,6 +1199,7 @@ def get_cash_month_payload(connection: sqlite3.Connection, month_key: str) -> di
         totals["total_in"] += summary["total_in"]
         totals["total_out"] += summary["total_out"]
         totals["total_deposit"] += summary["total_deposit"]
+        totals["total_partner_payment"] += summary["total_partner_payment"]
         totals["result"] += summary["result"]
         totals["entry_count"] += summary["entry_count"]
 
@@ -1217,6 +1260,7 @@ def get_partner_requests_payload(connection: sqlite3.Connection) -> dict[str, An
 
     return {
         "pix_key": PIX_KEY,
+        "pix_copy_paste": build_pix_payload(),
         "partners": [
             {
                 **partner,
@@ -1245,6 +1289,7 @@ def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str
     ]
     return {
         "pix_key": PIX_KEY,
+        "pix_copy_paste": build_pix_payload(),
         "partner_name": partner_name,
         "title": f"REQUISICAO {partner_name.upper()}",
         "entries": entries,
@@ -1263,7 +1308,11 @@ def get_cash_tree(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             d.month_title,
             d.finalized,
             COUNT(e.id) AS entry_count,
-            COALESCE(SUM(CASE WHEN e.flow_type IN ('saida', 'deposito') THEN -e.amount ELSE e.amount END), 0) AS result_value
+            COALESCE(SUM(CASE
+                WHEN e.flow_type = 'entrada' THEN e.amount
+                WHEN e.flow_type IN ('saida', 'deposito') THEN -e.amount
+                ELSE 0
+            END), 0) AS result_value
         FROM cash_days d
         LEFT JOIN cash_entries e ON e.cash_date = d.cash_date
         GROUP BY d.cash_date, d.year_number, d.month_number, d.month_title, d.finalized
@@ -1549,6 +1598,7 @@ def build_cash_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
         ["Total de entradas", f"R$ {summary['total_in']:.2f}"],
         ["Total de saidas", f"R$ {summary['total_out']:.2f}"],
         ["Depositos", f"R$ {summary['total_deposit']:.2f}"],
+        ["Pagamento Parceiros", f"R$ {summary['total_partner_payment']:.2f}"],
         ["Resultado do dia", f"R$ {summary['result']:.2f}"],
         ["Cofre atual", f"R$ {summary['vault_balance']:.2f}"],
         ["Status", "Finalizado" if day["finalized"] else "Aberto"],
@@ -1569,7 +1619,12 @@ def build_cash_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
 
     table_data = [["Cliente", "Placa", "Servico", "Valor", "Pagamento", "Tipo"]]
     for entry in payload["entries"]:
-        flow_label = {"entrada": "Entrada", "saida": "Saida", "deposito": "Deposito"}.get(entry["flow_type"], "Entrada")
+        flow_label = {
+            "entrada": "Entrada",
+            "saida": "Saida",
+            "deposito": "Deposito",
+            "pagamento_parceiros": "Pagamento Parceiros",
+        }.get(entry["flow_type"], "Entrada")
         table_data.append(
             [
                 entry["customer_name"],
@@ -1620,6 +1675,7 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
         ["Total de entradas", f"R$ {totals['total_in']:.2f}"],
         ["Total de saidas", f"R$ {totals['total_out']:.2f}"],
         ["Depositos", f"R$ {totals['total_deposit']:.2f}"],
+        ["Pagamento Parceiros", f"R$ {totals['total_partner_payment']:.2f}"],
         ["Resultado acumulado", f"R$ {totals['result']:.2f}"],
         ["Total de lancamentos", str(int(totals["entry_count"]))],
     ]
@@ -1637,7 +1693,7 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
     )
     story.extend([summary_table, Spacer(1, 10)])
 
-    table_data = [["Dia", "Lancamentos", "Entradas", "Saidas", "Depositos", "Resultado", "Status"]]
+    table_data = [["Dia", "Lancamentos", "Entradas", "Saidas", "Depositos", "Pgto. Parceiros", "Resultado", "Status"]]
     if payload["days"]:
         for day in payload["days"]:
             summary = day["summary"]
@@ -1648,14 +1704,15 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
                     f"R$ {summary['total_in']:.2f}",
                     f"R$ {summary['total_out']:.2f}",
                     f"R$ {summary['total_deposit']:.2f}",
+                    f"R$ {summary['total_partner_payment']:.2f}",
                     f"R$ {summary['result']:.2f}",
                     "Finalizado" if day["finalized"] else "Aberto",
                 ]
             )
     else:
-        table_data.append(["Sem caixas no mes", "0", "R$ 0.00", "R$ 0.00", "R$ 0.00", "R$ 0.00", "-"])
+        table_data.append(["Sem caixas no mes", "0", "R$ 0.00", "R$ 0.00", "R$ 0.00", "R$ 0.00", "R$ 0.00", "-"])
 
-    table = Table(table_data, colWidths=[30 * mm, 28 * mm, 32 * mm, 32 * mm, 32 * mm, 34 * mm, 30 * mm], repeatRows=1)
+    table = Table(table_data, colWidths=[27 * mm, 23 * mm, 28 * mm, 28 * mm, 28 * mm, 32 * mm, 30 * mm, 24 * mm], repeatRows=1)
     table.setStyle(
         TableStyle(
             [
@@ -1676,7 +1733,7 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
 
 
 def build_pix_qr_drawing(size: int = 72) -> Drawing:
-    qr_code = QrCodeWidget(PIX_KEY)
+    qr_code = QrCodeWidget(build_pix_payload())
     bounds = qr_code.getBounds()
     width = bounds[2] - bounds[0]
     height = bounds[3] - bounds[1]
@@ -1701,15 +1758,16 @@ def build_partner_request_excel(payload: dict[str, Any]) -> io.BytesIO:
     sheet["A1"].font = title_font
     sheet["A1"].alignment = Alignment(horizontal="center")
     sheet["A2"] = f"Chave PIX: {payload['pix_key']}"
+    sheet["A3"] = f"PIX copia-e-cola: {payload['pix_copy_paste']}"
 
     headers = ["Data", "Placa", "Servico", "Valor"]
     for col_index, header in enumerate(headers, start=1):
-        cell = sheet.cell(row=4, column=col_index, value=header)
+        cell = sheet.cell(row=5, column=col_index, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center")
 
-    row_index = 5
+    row_index = 6
     for entry in payload["entries"]:
         sheet.cell(row=row_index, column=1, value=entry["display_date"])
         sheet.cell(row=row_index, column=2, value=entry["plate"])
@@ -1744,14 +1802,18 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
     styles = getSampleStyleSheet()
     header_style = styles["Title"].clone("RequestHeaderTitle")
     header_style.textColor = colors.white
-    header_style.fontSize = 16
-    header_style.leading = 20
+    header_style.fontSize = 14
+    header_style.leading = 17
     story = []
+    pix_code_for_pdf = "<br/>".join(payload["pix_copy_paste"][index : index + 54] for index in range(0, len(payload["pix_copy_paste"]), 54))
 
     header = Table(
         [
             [
-                Paragraph(f"<b>{payload['title']}</b><br/>Chave PIX: {payload['pix_key']}", header_style),
+                Paragraph(
+                    f"<b>{payload['title']}</b><br/>Chave PIX: {payload['pix_key']}<br/><font size=\"7\">PIX copia-e-cola:<br/>{pix_code_for_pdf}</font>",
+                    header_style,
+                ),
                 build_pix_qr_drawing(32 * mm),
             ]
         ],
@@ -2189,6 +2251,11 @@ def partner_request_pix_qr():
     drawing = build_pix_qr_drawing(110)
     svg = renderSVG.drawToString(drawing)
     return Response(svg, mimetype="image/svg+xml")
+
+
+@app.get("/api/partner-requests/pix-code")
+def partner_request_pix_code():
+    return jsonify({"pix_key": PIX_KEY, "pix_copy_paste": build_pix_payload()})
 
 
 @app.get("/api/partner-requests/export.xlsx")
