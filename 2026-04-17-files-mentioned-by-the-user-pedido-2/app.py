@@ -11,16 +11,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
-from reportlab.graphics import renderSVG
-from reportlab.graphics.barcode.qr import QrCodeWidget
-from reportlab.graphics.shapes import Drawing
+import qrcode
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.platypus import Image as ReportLabImage
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1733,14 +1732,25 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
     return buffer
 
 
-def build_pix_qr_drawing(size: int = 72) -> Drawing:
-    qr_code = QrCodeWidget(build_pix_payload())
-    bounds = qr_code.getBounds()
-    width = bounds[2] - bounds[0]
-    height = bounds[3] - bounds[1]
-    drawing = Drawing(size, size, transform=[size / width, 0, 0, size / height, 0, 0])
-    drawing.add(qr_code)
-    return drawing
+def build_pix_qr_png() -> io.BytesIO:
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(build_pix_payload())
+    qr.make(fit=True)
+    image = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
+
+
+def build_pix_qr_flowable(size: int = 72) -> ReportLabImage:
+    buffer = build_pix_qr_png()
+    return ReportLabImage(buffer, width=size, height=size)
 
 
 def build_partner_request_excel(payload: dict[str, Any]) -> io.BytesIO:
@@ -1815,7 +1825,7 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
                     f"<b>{payload['title']}</b><br/>Chave PIX: {payload['pix_key']}<br/><font size=\"7\">PIX copia-e-cola:<br/>{pix_code_for_pdf}</font>",
                     header_style,
                 ),
-                build_pix_qr_drawing(32 * mm),
+                build_pix_qr_flowable(32 * mm),
             ]
         ],
         colWidths=[140 * mm, 36 * mm],
@@ -2247,11 +2257,10 @@ def partner_request_detail():
     return jsonify(payload)
 
 
-@app.get("/api/partner-requests/pix-qr.svg")
+@app.get("/api/partner-requests/pix-qr.png")
 def partner_request_pix_qr():
-    drawing = build_pix_qr_drawing(110)
-    svg = renderSVG.drawToString(drawing)
-    return Response(svg, mimetype="image/svg+xml")
+    buffer = build_pix_qr_png()
+    return send_file(buffer, mimetype="image/png", as_attachment=False, download_name="pix-qrcode.png")
 
 
 @app.get("/api/partner-requests/pix-code")
