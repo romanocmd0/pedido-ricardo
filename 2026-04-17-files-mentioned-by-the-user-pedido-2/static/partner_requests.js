@@ -63,7 +63,7 @@ function renderReport(payload) {
   requestElements.exportXlsxButton.disabled = false;
 
   if (!payload.entries.length) {
-    requestElements.body.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhuma requisicao para este parceiro.</td></tr>';
+    requestElements.body.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhuma requisicao para este parceiro.</td></tr>';
     renderPartnerList();
     return;
   }
@@ -76,11 +76,37 @@ function renderReport(payload) {
           <td>${escapeHtml(entry.plate || "-")}</td>
           <td>${escapeHtml(entry.service_name)}</td>
           <td>${formatCurrency(entry.amount)}</td>
+          <td>
+            <select class="request-status-select" data-entry-id="${entry.id}">
+              <option value="em_aberto" ${entry.request_payment_status === "em_aberto" ? "selected" : ""}>Em aberto</option>
+              <option value="pago" ${entry.request_payment_status === "pago" ? "selected" : ""}>Pago</option>
+            </select>
+          </td>
         </tr>
       `,
     )
     .join("");
+  requestElements.body.querySelectorAll(".request-status-select").forEach((select) => {
+    select.addEventListener("change", async () => {
+      await updateRequestStatus(select.dataset.entryId, select.value);
+    });
+  });
   renderPartnerList();
+}
+
+async function updateRequestStatus(entryId, status) {
+  const response = await fetch(`/api/partner-requests/status/${entryId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel atualizar o status.");
+    await loadPartner(requestState.selectedPartner);
+    return;
+  }
+  await loadPartner(requestState.selectedPartner);
 }
 
 async function loadPartner(partnerName) {

@@ -173,6 +173,17 @@ def build_pix_payload() -> str:
     return f"{payload_without_crc}{crc16_ccitt(payload_without_crc)}"
 
 
+def normalize_request_payment_status(value: str | None) -> str:
+    normalized = normalize_text(value)
+    if normalized == "PAGO":
+        return "pago"
+    return "em_aberto"
+
+
+def request_payment_status_label(value: str | None) -> str:
+    return "Pago" if normalize_request_payment_status(value) == "pago" else "Em aberto"
+
+
 def month_key_from_parts(year_number: int, month_number: int) -> str:
     return f"{year_number:04d}-{month_number:02d}"
 
@@ -1211,12 +1222,17 @@ def get_cash_month_payload(connection: sqlite3.Connection, month_key: str) -> di
     }
 
 
-def get_partner_request_rows(connection: sqlite3.Connection, partner_name: str | None = None) -> list[sqlite3.Row]:
+def get_partner_request_rows(
+    connection: sqlite3.Connection, partner_name: str | None = None, only_open: bool = False
+) -> list[sqlite3.Row]:
     params: list[Any] = []
     partner_filter = ""
     if partner_name:
         partner_filter = "AND customer_name = ?"
         params.append(partner_name)
+    status_filter = ""
+    if only_open:
+        status_filter = "AND COALESCE(request_payment_status, 'em_aberto') = 'em_aberto'"
 
     return connection.execute(
         f"""
@@ -1229,11 +1245,13 @@ def get_partner_request_rows(connection: sqlite3.Connection, partner_name: str |
             amount,
             payment_method,
             flow_type,
+            COALESCE(request_payment_status, 'em_aberto') AS request_payment_status,
             created_at,
             updated_at
         FROM cash_entries
         WHERE UPPER(TRIM(payment_method)) = 'REC'
         {partner_filter}
+        {status_filter}
         ORDER BY customer_name COLLATE NOCASE, cash_date, id
         """,
         params,
@@ -1272,8 +1290,8 @@ def get_partner_requests_payload(connection: sqlite3.Connection) -> dict[str, An
     }
 
 
-def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str) -> dict[str, Any]:
-    rows = get_partner_request_rows(connection, partner_name)
+def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str, only_open: bool = False) -> dict[str, Any]:
+    rows = get_partner_request_rows(connection, partner_name, only_open=only_open)
     entries = [
         {
             "id": row["id"],
@@ -1284,6 +1302,8 @@ def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str
             "amount": round(float(row["amount"] or 0), 2),
             "payment_method": row["payment_method"],
             "flow_type": row["flow_type"],
+            "request_payment_status": normalize_request_payment_status(row["request_payment_status"]),
+            "request_payment_status_label": request_payment_status_label(row["request_payment_status"]),
         }
         for row in rows
     ]
@@ -1952,6 +1972,7 @@ def init_db() -> None:
                 payment_method TEXT NOT NULL,
                 payment_group TEXT NOT NULL DEFAULT 'outras',
                 flow_type TEXT NOT NULL DEFAULT 'entrada',
+                request_payment_status TEXT NOT NULL DEFAULT 'em_aberto',
                 synced_to_monthly INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1972,8 +1993,17 @@ def init_db() -> None:
         if "unit_caminhao_transferencia" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN unit_caminhao_transferencia REAL NOT NULL DEFAULT 0")
         cash_columns = {row["name"] for row in connection.execute("PRAGMA table_info(cash_entries)").fetchall()}
+        if "request_payment_status" not in cash_columns:
+            connection.execute("ALTER TABLE cash_entries ADD COLUMN request_payment_status TEXT NOT NULL DEFAULT 'em_aberto'")
         if "synced_to_monthly" not in cash_columns:
             connection.execute("ALTER TABLE cash_entries ADD COLUMN synced_to_monthly INTEGER NOT NULL DEFAULT 0")
+        connection.execute(
+            """
+            UPDATE cash_entries
+            SET request_payment_status = 'em_aberto'
+            WHERE request_payment_status IS NULL OR TRIM(request_payment_status) = ''
+            """
+        )
 
         connection.executescript(
             """
@@ -2266,6 +2296,31 @@ def partner_request_detail():
     return jsonify(payload)
 
 
+@app.put("/api/partner-requests/status/<int:entry_id>")
+def update_partner_request_status(entry_id: int):
+    status = normalize_request_payment_status((request.get_json(silent=True) or {}).get("status"))
+    with get_db() as connection:
+        row = connection.execute(
+            """
+            SELECT id
+            FROM cash_entries
+            WHERE id = ? AND UPPER(TRIM(payment_method)) = 'REC'
+            """,
+            (entry_id,),
+        ).fetchone()
+        if row is None:
+            return jsonify({"error": "Requisicao nao encontrada."}), 404
+        connection.execute(
+            """
+            UPDATE cash_entries
+            SET request_payment_status = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (status, entry_id),
+        )
+    return jsonify({"message": "Status atualizado com sucesso.", "status": status, "status_label": request_payment_status_label(status)})
+
+
 @app.get("/api/partner-requests/pix-qr.png")
 def partner_request_pix_qr():
     buffer = build_pix_qr_png()
@@ -2300,7 +2355,7 @@ def export_partner_request_pdf():
     if not partner_name:
         return jsonify({"error": "Parceiro obrigatorio."}), 400
     with get_db() as connection:
-        payload = get_partner_request_detail(connection, partner_name)
+        payload = get_partner_request_detail(connection, partner_name, only_open=True)
     buffer = build_partner_request_pdf(payload)
     safe_name = safe_filename_part(partner_name)
     return send_file(
