@@ -237,29 +237,6 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted);
   font-weight: 700;
 }
-.pix-copy-field {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-}
-.pix-copy-field span {
-  color: var(--accent-strong);
-  font-size: 0.82rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.pix-copy-field textarea {
-  width: min(100%, 760px);
-  min-height: 76px;
-  resize: vertical;
-  border: 1px solid rgba(212,175,55,0.28);
-  border-radius: 14px;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.92);
-  color: #111111;
-  font-size: 0.78rem;
-}
 .request-qr-code {
   width: 110px;
   height: 110px;

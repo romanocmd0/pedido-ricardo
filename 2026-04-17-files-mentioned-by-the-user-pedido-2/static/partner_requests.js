@@ -9,7 +9,6 @@ const requestElements = {
   partnerList: document.querySelector("#requests-partner-list"),
   title: document.querySelector("#request-report-title"),
   pixKey: document.querySelector("#request-pix-key"),
-  pixCopy: document.querySelector("#request-pix-copy"),
   body: document.querySelector("#request-report-body"),
   total: document.querySelector("#request-report-total"),
   exportPdfButton: document.querySelector("#export-request-pdf-button"),
@@ -58,7 +57,6 @@ function renderReport(payload) {
   requestState.selectedPartner = payload.partner_name;
   requestElements.title.textContent = payload.title;
   requestElements.pixKey.textContent = `Chave PIX: ${payload.pix_key}`;
-  requestElements.pixCopy.value = payload.pix_copy_paste || "";
   requestElements.total.textContent = formatCurrency(payload.total_value);
   requestElements.selectedTotal.textContent = formatCurrency(payload.total_value);
   requestElements.exportPdfButton.disabled = false;
@@ -106,8 +104,6 @@ async function loadPartners() {
   renderPartnerList();
   if (requestState.partners.length) {
     await loadPartner(requestState.partners[0].partner_name);
-  } else if (data.pix_copy_paste) {
-    requestElements.pixCopy.value = data.pix_copy_paste;
   }
 }
 

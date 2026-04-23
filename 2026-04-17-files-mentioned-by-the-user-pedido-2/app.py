@@ -1291,7 +1291,7 @@ def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str
         "pix_key": PIX_KEY,
         "pix_copy_paste": build_pix_payload(),
         "partner_name": partner_name,
-        "title": f"REQUISICAO {partner_name.upper()}",
+        "title": partner_name.upper(),
         "entries": entries,
         "entry_count": len(entries),
         "total_value": round(sum(entry["amount"] for entry in entries), 2),
@@ -1811,22 +1811,29 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
         bottomMargin=12 * mm,
     )
     styles = getSampleStyleSheet()
-    header_style = styles["Title"].clone("RequestHeaderTitle")
-    header_style.textColor = colors.white
-    header_style.fontSize = 14
-    header_style.leading = 17
+    pix_style = styles["Normal"].clone("RequestPixHeader")
+    pix_style.textColor = colors.white
+    pix_style.fontName = "Helvetica-Bold"
+    pix_style.fontSize = 10
+    pix_style.leading = 13
+    pix_style.alignment = 1
+    partner_style = styles["Title"].clone("RequestPartnerTitle")
+    partner_style.textColor = colors.white
+    partner_style.fontSize = 22
+    partner_style.leading = 26
+    partner_style.alignment = 1
     story = []
-    pix_code_for_pdf = "<br/>".join(payload["pix_copy_paste"][index : index + 54] for index in range(0, len(payload["pix_copy_paste"]), 54))
 
     header = Table(
         [
             [
-                Paragraph(
-                    f"<b>{payload['title']}</b><br/>Chave PIX: {payload['pix_key']}<br/><font size=\"7\">PIX copia-e-cola:<br/>{pix_code_for_pdf}</font>",
-                    header_style,
-                ),
+                Paragraph(f"Chave PIX: {payload['pix_key']}", pix_style),
                 build_pix_qr_flowable(32 * mm),
-            ]
+            ],
+            [
+                Paragraph(f"<b>{payload['partner_name'].upper()}</b>", partner_style),
+                "",
+            ],
         ],
         colWidths=[140 * mm, 36 * mm],
     )
@@ -1837,7 +1844,9 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
                 ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#D4AF37")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ("SPAN", (1, 0), (1, 1)),
+                ("ALIGN", (0, 0), (0, 1), "CENTER"),
+                ("ALIGN", (1, 0), (1, 1), "CENTER"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 12),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 12),
                 ("TOPPADDING", (0, 0), (-1, -1), 10),
