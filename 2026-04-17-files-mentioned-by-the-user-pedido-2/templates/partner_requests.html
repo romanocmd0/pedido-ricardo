@@ -56,6 +56,21 @@
             <img class="request-qr-code" src="/api/partner-requests/pix-qr.png" alt="QR Code PIX" />
           </div>
 
+          <section class="requests-filter-panel">
+            <div class="requests-filter-group">
+              <p class="section-tag">Ano</p>
+              <div id="request-year-list" class="request-filter-list">
+                <div class="empty-state">Selecione um parceiro para ver os anos.</div>
+              </div>
+            </div>
+            <div class="requests-filter-group">
+              <p class="section-tag">Mes</p>
+              <div id="request-month-list" class="request-filter-list">
+                <div class="empty-state">Selecione um ano para ver os meses.</div>
+              </div>
+            </div>
+          </section>
+
           <div class="form-actions request-export-actions">
             <button id="export-request-pdf-button" class="primary-button" type="button" disabled>Exportar PDF</button>
             <button id="export-request-xlsx-button" class="secondary-button" type="button" disabled>Exportar Excel</button>

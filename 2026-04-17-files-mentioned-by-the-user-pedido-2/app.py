@@ -184,6 +184,22 @@ def request_payment_status_label(value: str | None) -> str:
     return "Pago" if normalize_request_payment_status(value) == "pago" else "Em aberto"
 
 
+def parse_request_period(year_value: str | None, month_value: str | None) -> tuple[int | None, int | None]:
+    year_number = None
+    month_number = None
+    if year_value:
+        year_number = int(year_value)
+        if year_number < 2000 or year_number > 2100:
+            raise ValueError("Ano invalido.")
+    if month_value:
+        month_number = int(month_value)
+        if month_number < 1 or month_number > 12:
+            raise ValueError("Mes invalido.")
+        if year_number is None:
+            raise ValueError("Selecione o ano antes do mes.")
+    return year_number, month_number
+
+
 def month_key_from_parts(year_number: int, month_number: int) -> str:
     return f"{year_number:04d}-{month_number:02d}"
 
@@ -1223,13 +1239,24 @@ def get_cash_month_payload(connection: sqlite3.Connection, month_key: str) -> di
 
 
 def get_partner_request_rows(
-    connection: sqlite3.Connection, partner_name: str | None = None, only_open: bool = False
+    connection: sqlite3.Connection,
+    partner_name: str | None = None,
+    year_number: int | None = None,
+    month_number: int | None = None,
+    only_open: bool = False,
 ) -> list[sqlite3.Row]:
     params: list[Any] = []
     partner_filter = ""
     if partner_name:
         partner_filter = "AND customer_name = ?"
         params.append(partner_name)
+    period_filter = ""
+    if year_number is not None:
+        period_filter += " AND SUBSTR(cash_date, 1, 4) = ?"
+        params.append(f"{year_number:04d}")
+    if month_number is not None:
+        period_filter += " AND SUBSTR(cash_date, 6, 2) = ?"
+        params.append(f"{month_number:02d}")
     status_filter = ""
     if only_open:
         status_filter = "AND COALESCE(request_payment_status, 'em_aberto') = 'em_aberto'"
@@ -1251,6 +1278,7 @@ def get_partner_request_rows(
         FROM cash_entries
         WHERE UPPER(TRIM(payment_method)) = 'REC'
         {partner_filter}
+        {period_filter}
         {status_filter}
         ORDER BY customer_name COLLATE NOCASE, cash_date, id
         """,
@@ -1263,6 +1291,7 @@ def get_partner_requests_payload(connection: sqlite3.Connection) -> dict[str, An
     partners: dict[str, dict[str, Any]] = {}
     for row in rows:
         partner = row["customer_name"]
+        parsed = parse_cash_date(row["cash_date"])
         item = partners.setdefault(
             partner,
             {
@@ -1270,28 +1299,82 @@ def get_partner_requests_payload(connection: sqlite3.Connection) -> dict[str, An
                 "entry_count": 0,
                 "total_value": 0.0,
                 "last_date": row["cash_date"],
+                "years": {},
             },
         )
         item["entry_count"] += 1
         item["total_value"] += float(row["amount"] or 0)
         item["last_date"] = max(item["last_date"], row["cash_date"])
+        year_node = item["years"].setdefault(
+            parsed.year,
+            {
+                "year_number": parsed.year,
+                "entry_count": 0,
+                "total_value": 0.0,
+                "months": {},
+            },
+        )
+        year_node["entry_count"] += 1
+        year_node["total_value"] += float(row["amount"] or 0)
+        month_node = year_node["months"].setdefault(
+            parsed.month,
+            {
+                "month_number": parsed.month,
+                "month_title": MONTH_TITLES[parsed.month],
+                "entry_count": 0,
+                "total_value": 0.0,
+            },
+        )
+        month_node["entry_count"] += 1
+        month_node["total_value"] += float(row["amount"] or 0)
 
     return {
         "pix_key": PIX_KEY,
         "pix_copy_paste": build_pix_payload(),
         "partners": [
             {
-                **partner,
+                "partner_name": partner["partner_name"],
+                "entry_count": partner["entry_count"],
+                "last_date": partner["last_date"],
                 "total_value": round(partner["total_value"], 2),
                 "last_display_date": format_display_date(partner["last_date"]),
+                "years": [
+                    {
+                        "year_number": year["year_number"],
+                        "entry_count": year["entry_count"],
+                        "total_value": round(year["total_value"], 2),
+                        "months": [
+                            {
+                                "month_number": month["month_number"],
+                                "month_title": month["month_title"],
+                                "entry_count": month["entry_count"],
+                                "total_value": round(month["total_value"], 2),
+                            }
+                            for month in sorted(year["months"].values(), key=lambda item: item["month_number"], reverse=True)
+                        ],
+                    }
+                    for year in sorted(partner["years"].values(), key=lambda item: item["year_number"], reverse=True)
+                ],
             }
             for partner in sorted(partners.values(), key=lambda item: item["partner_name"].lower())
         ],
     }
 
 
-def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str, only_open: bool = False) -> dict[str, Any]:
-    rows = get_partner_request_rows(connection, partner_name, only_open=only_open)
+def get_partner_request_detail(
+    connection: sqlite3.Connection,
+    partner_name: str,
+    year_number: int | None = None,
+    month_number: int | None = None,
+    only_open: bool = False,
+) -> dict[str, Any]:
+    rows = get_partner_request_rows(
+        connection,
+        partner_name,
+        year_number=year_number,
+        month_number=month_number,
+        only_open=only_open,
+    )
     entries = [
         {
             "id": row["id"],
@@ -1312,6 +1395,10 @@ def get_partner_request_detail(connection: sqlite3.Connection, partner_name: str
         "pix_copy_paste": build_pix_payload(),
         "partner_name": partner_name,
         "title": partner_name.upper(),
+        "selected_year": year_number,
+        "selected_month": month_number,
+        "selected_month_title": MONTH_TITLES[month_number] if month_number else "",
+        "selected_period_label": f"{MONTH_TITLES[month_number]} de {year_number}" if year_number and month_number else "",
         "entries": entries,
         "entry_count": len(entries),
         "total_value": round(sum(entry["amount"] for entry in entries), 2),
@@ -1789,7 +1876,7 @@ def build_partner_request_excel(payload: dict[str, Any]) -> io.BytesIO:
     sheet["A1"].font = title_font
     sheet["A1"].alignment = Alignment(horizontal="center")
     sheet["A2"] = f"Chave PIX: {payload['pix_key']}"
-    sheet["A3"] = f"PIX copia-e-cola: {payload['pix_copy_paste']}"
+    sheet["A3"] = payload["selected_period_label"] or "Todos os periodos"
 
     headers = ["Data", "Placa", "Servico", "Valor"]
     for col_index, header in enumerate(headers, start=1):
@@ -1842,6 +1929,12 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
     partner_style.fontSize = 22
     partner_style.leading = 26
     partner_style.alignment = 1
+    period_style = styles["Normal"].clone("RequestPeriodHeader")
+    period_style.textColor = colors.HexColor("#F0D777")
+    period_style.fontName = "Helvetica-Bold"
+    period_style.fontSize = 10
+    period_style.leading = 12
+    period_style.alignment = 1
     story = []
 
     header = Table(
@@ -1854,6 +1947,10 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
                 Paragraph(f"<b>{payload['partner_name'].upper()}</b>", partner_style),
                 "",
             ],
+            [
+                Paragraph(payload["selected_period_label"] or "Todos os periodos", period_style),
+                "",
+            ],
         ],
         colWidths=[140 * mm, 36 * mm],
     )
@@ -1864,9 +1961,9 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
                 ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#D4AF37")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("SPAN", (1, 0), (1, 1)),
-                ("ALIGN", (0, 0), (0, 1), "CENTER"),
-                ("ALIGN", (1, 0), (1, 1), "CENTER"),
+                ("SPAN", (1, 0), (1, 2)),
+                ("ALIGN", (0, 0), (0, 2), "CENTER"),
+                ("ALIGN", (1, 0), (1, 2), "CENTER"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 12),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 12),
                 ("TOPPADDING", (0, 0), (-1, -1), 10),
@@ -2291,8 +2388,12 @@ def partner_request_detail():
     partner_name = (request.args.get("partner") or "").strip()
     if not partner_name:
         return jsonify({"error": "Parceiro obrigatorio."}), 400
+    try:
+        year_number, month_number = parse_request_period(request.args.get("year"), request.args.get("month"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     with get_db() as connection:
-        payload = get_partner_request_detail(connection, partner_name)
+        payload = get_partner_request_detail(connection, partner_name, year_number=year_number, month_number=month_number)
     return jsonify(payload)
 
 
@@ -2337,15 +2438,20 @@ def export_partner_request_xlsx():
     partner_name = (request.args.get("partner") or "").strip()
     if not partner_name:
         return jsonify({"error": "Parceiro obrigatorio."}), 400
+    try:
+        year_number, month_number = parse_request_period(request.args.get("year"), request.args.get("month"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     with get_db() as connection:
-        payload = get_partner_request_detail(connection, partner_name)
+        payload = get_partner_request_detail(connection, partner_name, year_number=year_number, month_number=month_number)
     buffer = build_partner_request_excel(payload)
     safe_name = safe_filename_part(partner_name)
+    suffix = f"-{year_number:04d}-{month_number:02d}" if year_number and month_number else ""
     return send_file(
         buffer,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name=f"requisicao-{safe_name}.xlsx",
+        download_name=f"requisicao-{safe_name}{suffix}.xlsx",
     )
 
 
@@ -2354,15 +2460,26 @@ def export_partner_request_pdf():
     partner_name = (request.args.get("partner") or "").strip()
     if not partner_name:
         return jsonify({"error": "Parceiro obrigatorio."}), 400
+    try:
+        year_number, month_number = parse_request_period(request.args.get("year"), request.args.get("month"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     with get_db() as connection:
-        payload = get_partner_request_detail(connection, partner_name, only_open=True)
+        payload = get_partner_request_detail(
+            connection,
+            partner_name,
+            year_number=year_number,
+            month_number=month_number,
+            only_open=True,
+        )
     buffer = build_partner_request_pdf(payload)
     safe_name = safe_filename_part(partner_name)
+    suffix = f"-{year_number:04d}-{month_number:02d}" if year_number and month_number else ""
     return send_file(
         buffer,
         mimetype="application/pdf",
         as_attachment=True,
-        download_name=f"requisicao-{safe_name}.pdf",
+        download_name=f"requisicao-{safe_name}{suffix}.pdf",
     )
 
 
