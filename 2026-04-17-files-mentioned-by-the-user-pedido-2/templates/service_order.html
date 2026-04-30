@@ -21,6 +21,10 @@
         </div>
         <div class="hero-card">
           <div>
+            <span class="hero-label">Data da ordem</span>
+            <input id="cash-date-input" class="hero-date-input" type="date" />
+          </div>
+          <div>
             <span class="hero-label">Resultado do dia</span>
             <strong id="cash-result">R$ 0,00</strong>
           </div>
@@ -31,23 +35,7 @@
         </div>
       </section>
 
-      <section class="cash-layout">
-        <aside class="panel cash-tree-panel">
-          <div class="section-header">
-            <div>
-              <p class="section-tag">Arquivo</p>
-              <h2>Ano / Mes / Dia</h2>
-            </div>
-          </div>
-          <label class="field">
-            <span>Criar ou abrir data</span>
-            <input id="cash-date-input" type="date" />
-          </label>
-          <button id="open-cash-day-button" class="primary-button" type="button">Abrir ordem</button>
-          <div id="cash-tree" class="cash-tree"></div>
-        </aside>
-
-        <section class="panel cash-main-panel">
+      <section class="panel cash-main-panel service-order-panel">
           <div class="section-header">
             <div>
               <p class="section-tag">Alimentacao manual</p>
@@ -179,7 +167,6 @@
               </tbody>
             </table>
           </div>
-        </section>
       </section>
     </main>
 

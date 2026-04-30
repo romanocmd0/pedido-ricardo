@@ -42,6 +42,12 @@ const cashElements = {
   totalPartnerPayment: document.querySelector("#cash-total-partner-payment"),
 };
 
+const cashPageMode = {
+  hasEntryForm: Boolean(cashElements.form),
+  hasPartnerPaymentForm: Boolean(cashElements.partnerPaymentForm),
+  hasTree: Boolean(cashElements.tree),
+};
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 }
@@ -78,6 +84,10 @@ function partnerPaymentPayload() {
   };
 }
 
+function syncDateInput() {
+  if (cashElements.dateInput) cashElements.dateInput.value = cashState.activeDate;
+}
+
 function resetCashForm() {
   if (!cashElements.form) return;
   cashElements.form.reset();
@@ -108,16 +118,16 @@ function setSelectValue(select, value) {
 function renderSummary(summary) {
   const titlePrefix = cashElements.title?.dataset.prefix || "Caixa de";
   if (cashElements.title) cashElements.title.textContent = `${titlePrefix} ${summary.display_date}`.trim();
-  cashElements.result.textContent = formatCurrency(summary.result);
-  cashElements.dinheiro.textContent = formatCurrency(summary.payment_totals.dinheiro);
-  cashElements.debito.textContent = formatCurrency(summary.payment_totals.cartao_debito);
-  cashElements.credito.textContent = formatCurrency(summary.payment_totals.cartao_credito);
-  cashElements.pix.textContent = formatCurrency(summary.payment_totals.pix);
-  cashElements.outras.textContent = formatCurrency(summary.payment_totals.outras);
-  cashElements.vaultBalance.textContent = formatCurrency(summary.vault_balance);
-  cashElements.totalIn.textContent = formatCurrency(summary.total_in);
-  cashElements.totalOut.textContent = formatCurrency(summary.total_out);
-  cashElements.totalDeposit.textContent = formatCurrency(summary.total_deposit);
+  if (cashElements.result) cashElements.result.textContent = formatCurrency(summary.result);
+  if (cashElements.dinheiro) cashElements.dinheiro.textContent = formatCurrency(summary.payment_totals.dinheiro);
+  if (cashElements.debito) cashElements.debito.textContent = formatCurrency(summary.payment_totals.cartao_debito);
+  if (cashElements.credito) cashElements.credito.textContent = formatCurrency(summary.payment_totals.cartao_credito);
+  if (cashElements.pix) cashElements.pix.textContent = formatCurrency(summary.payment_totals.pix);
+  if (cashElements.outras) cashElements.outras.textContent = formatCurrency(summary.payment_totals.outras);
+  if (cashElements.vaultBalance) cashElements.vaultBalance.textContent = formatCurrency(summary.vault_balance);
+  if (cashElements.totalIn) cashElements.totalIn.textContent = formatCurrency(summary.total_in);
+  if (cashElements.totalOut) cashElements.totalOut.textContent = formatCurrency(summary.total_out);
+  if (cashElements.totalDeposit) cashElements.totalDeposit.textContent = formatCurrency(summary.total_deposit);
   if (cashElements.totalPartnerPayment) cashElements.totalPartnerPayment.textContent = formatCurrency(summary.total_partner_payment);
 }
 
@@ -168,23 +178,27 @@ function renderEntries() {
     `;
     const actions = document.createElement("div");
     actions.className = "actions";
-    const editButton = document.createElement("button");
-    editButton.type = "button";
-    editButton.className = "icon-button";
-    editButton.textContent = "Editar";
-    editButton.addEventListener("click", () => editEntry(entry));
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "icon-button danger-button";
     deleteButton.textContent = "Excluir";
     deleteButton.addEventListener("click", () => deleteEntry(entry.id));
-    actions.append(editButton, deleteButton);
+    if (cashPageMode.hasEntryForm) {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "icon-button";
+      editButton.textContent = "Editar";
+      editButton.addEventListener("click", () => editEntry(entry));
+      actions.append(editButton);
+    }
+    actions.append(deleteButton);
     row.querySelector("td:last-child").appendChild(actions);
     cashElements.body.appendChild(row);
   });
 }
 
 function renderTree(tree) {
+  if (!cashElements.tree) return;
   if (!tree.length) {
     cashElements.tree.innerHTML = '<div class="empty-state">Nenhum caixa criado ainda.</div>';
     return;
@@ -224,13 +238,14 @@ function renderTree(tree) {
   cashElements.tree.querySelectorAll("[data-date]").forEach((button) => {
     button.addEventListener("click", async () => {
       cashState.activeDate = button.dataset.date;
-      cashElements.dateInput.value = cashState.activeDate;
+      syncDateInput();
       await loadDay();
     });
   });
 }
 
 function editEntry(entry) {
+  if (!cashPageMode.hasEntryForm) return;
   cashElements.entryId.value = entry.id;
   cashElements.customerName.value = entry.customer_name;
   cashElements.plate.value = entry.plate || "";
@@ -242,6 +257,7 @@ function editEntry(entry) {
 }
 
 async function loadTree() {
+  if (!cashPageMode.hasTree) return;
   const response = await fetch("/api/cash-flow/tree");
   const data = await response.json();
   if (!response.ok) {
@@ -260,13 +276,14 @@ async function loadDay() {
   }
   cashState.day = data.day;
   cashState.entries = data.entries || [];
-  cashElements.status.textContent = data.day.finalized ? "Finalizado" : "Aberto";
+  if (cashElements.status) cashElements.status.textContent = data.day.finalized ? "Finalizado" : "Aberto";
   renderSummary(data.summary);
   renderEntries();
   await loadTree();
 }
 
 async function saveEntry(event) {
+  if (!cashPageMode.hasEntryForm) return;
   event.preventDefault();
   const entryId = cashElements.entryId.value;
   const response = await fetch(entryId ? `/api/cash-flow/entries/${entryId}` : `/api/cash-flow/day/${cashState.activeDate}/entries`, {
@@ -336,7 +353,7 @@ async function setFinalized(finalized) {
   }
   cashState.day = data.day;
   cashState.entries = data.entries || [];
-  cashElements.status.textContent = data.day.finalized ? "Finalizado" : "Aberto";
+  if (cashElements.status) cashElements.status.textContent = data.day.finalized ? "Finalizado" : "Aberto";
   renderSummary(data.summary);
   renderEntries();
   await loadTree();
@@ -344,6 +361,10 @@ async function setFinalized(finalized) {
 
 function setupEvents() {
   cashElements.openButton?.addEventListener("click", async () => {
+    cashState.activeDate = cashElements.dateInput.value || cashState.activeDate;
+    await loadDay();
+  });
+  cashElements.dateInput?.addEventListener("change", async () => {
     cashState.activeDate = cashElements.dateInput.value || cashState.activeDate;
     await loadDay();
   });
@@ -361,8 +382,8 @@ function setupEvents() {
   cashElements.deleteDayButton?.addEventListener("click", deleteCashDay);
 }
 
-if (cashElements.dateInput && cashElements.body && cashElements.form) {
-  cashElements.dateInput.value = cashState.activeDate;
+if (cashElements.dateInput && cashElements.body) {
+  syncDateInput();
   setupEvents();
   loadDay();
 }
