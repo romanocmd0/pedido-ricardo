@@ -79,12 +79,14 @@ function partnerPaymentPayload() {
 }
 
 function resetCashForm() {
+  if (!cashElements.form) return;
   cashElements.form.reset();
   cashElements.entryId.value = "";
   cashElements.flowType.value = "entrada";
 }
 
 function resetPartnerPaymentForm() {
+  if (!cashElements.partnerPaymentForm) return;
   cashElements.partnerPaymentForm.reset();
 }
 
@@ -104,7 +106,8 @@ function setSelectValue(select, value) {
 }
 
 function renderSummary(summary) {
-  cashElements.title.textContent = `Caixa de ${summary.display_date}`;
+  const titlePrefix = cashElements.title?.dataset.prefix || "Caixa de";
+  if (cashElements.title) cashElements.title.textContent = `${titlePrefix} ${summary.display_date}`.trim();
   cashElements.result.textContent = formatCurrency(summary.result);
   cashElements.dinheiro.textContent = formatCurrency(summary.payment_totals.dinheiro);
   cashElements.debito.textContent = formatCurrency(summary.payment_totals.cartao_debito);
@@ -115,15 +118,15 @@ function renderSummary(summary) {
   cashElements.totalIn.textContent = formatCurrency(summary.total_in);
   cashElements.totalOut.textContent = formatCurrency(summary.total_out);
   cashElements.totalDeposit.textContent = formatCurrency(summary.total_deposit);
-  cashElements.totalPartnerPayment.textContent = formatCurrency(summary.total_partner_payment);
+  if (cashElements.totalPartnerPayment) cashElements.totalPartnerPayment.textContent = formatCurrency(summary.total_partner_payment);
 }
 
 function renderDeletedCashDay() {
   cashState.day = null;
   cashState.entries = [];
-  cashElements.title.textContent = "Caixa excluido";
-  cashElements.result.textContent = formatCurrency(0);
-  cashElements.status.textContent = "Excluido";
+  if (cashElements.title) cashElements.title.textContent = "Caixa excluido";
+  if (cashElements.result) cashElements.result.textContent = formatCurrency(0);
+  if (cashElements.status) cashElements.status.textContent = "Excluido";
   renderSummary({
     display_date: cashState.activeDate.split("-").reverse().join("/"),
     result: 0,
@@ -140,8 +143,8 @@ function renderDeletedCashDay() {
     total_deposit: 0,
     total_partner_payment: 0,
   });
-  cashElements.title.textContent = "Caixa excluido";
-  cashElements.status.textContent = "Excluido";
+  if (cashElements.title) cashElements.title.textContent = "Caixa excluido";
+  if (cashElements.status) cashElements.status.textContent = "Excluido";
   cashElements.body.innerHTML = '<tr><td colspan="7" class="empty-state">Caixa excluido. Escolha uma data no arquivo ou abra um novo caixa.</td></tr>';
 }
 
@@ -281,6 +284,7 @@ async function saveEntry(event) {
 }
 
 async function savePartnerPayment(event) {
+  if (!cashElements.partnerPaymentForm) return;
   event.preventDefault();
   const response = await fetch(`/api/cash-flow/day/${cashState.activeDate}/entries`, {
     method: "POST",
@@ -339,24 +343,26 @@ async function setFinalized(finalized) {
 }
 
 function setupEvents() {
-  cashElements.openButton.addEventListener("click", async () => {
+  cashElements.openButton?.addEventListener("click", async () => {
     cashState.activeDate = cashElements.dateInput.value || cashState.activeDate;
     await loadDay();
   });
-  cashElements.form.addEventListener("submit", saveEntry);
-  cashElements.partnerPaymentForm.addEventListener("submit", savePartnerPayment);
-  cashElements.clearButton.addEventListener("click", resetCashForm);
-  cashElements.exportPdfButton.addEventListener("click", () => {
+  cashElements.form?.addEventListener("submit", saveEntry);
+  cashElements.partnerPaymentForm?.addEventListener("submit", savePartnerPayment);
+  cashElements.clearButton?.addEventListener("click", resetCashForm);
+  cashElements.exportPdfButton?.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");
   });
-  cashElements.exportMonthPdfButton.addEventListener("click", () => {
+  cashElements.exportMonthPdfButton?.addEventListener("click", () => {
     window.open(`/api/cash-flow/month/${cashState.activeDate.slice(0, 7)}.pdf`, "_blank");
   });
-  cashElements.finalizeButton.addEventListener("click", () => setFinalized(true));
-  cashElements.reopenButton.addEventListener("click", () => setFinalized(false));
-  cashElements.deleteDayButton.addEventListener("click", deleteCashDay);
+  cashElements.finalizeButton?.addEventListener("click", () => setFinalized(true));
+  cashElements.reopenButton?.addEventListener("click", () => setFinalized(false));
+  cashElements.deleteDayButton?.addEventListener("click", deleteCashDay);
 }
 
-cashElements.dateInput.value = cashState.activeDate;
-setupEvents();
-loadDay();
+if (cashElements.dateInput && cashElements.body && cashElements.form) {
+  cashElements.dateInput.value = cashState.activeDate;
+  setupEvents();
+  loadDay();
+}

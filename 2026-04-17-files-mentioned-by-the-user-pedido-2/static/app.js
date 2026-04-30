@@ -123,10 +123,12 @@ function getActiveMonth() {
 }
 
 function updateCalculatedTotal() {
+  if (!elements.calculatedTotal || !elements.form) return;
   elements.calculatedTotal.textContent = formatCurrency(calculateTotal(currentPayload()));
 }
 
 function resetForm() {
+  if (!elements.form) return;
   elements.form.reset();
   elements.recordId.value = "";
   elements.formTitle.textContent = "Novo registro";
@@ -205,10 +207,18 @@ function renderSummary() {
   elements.summaryTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTransferenciaQty.textContent = String(summary.transferencia_group_qty || summary.transferencia_qty || 0);
   elements.summaryTransferenciaPct.textContent = formatPercent(summary.transferencia_pct);
-  elements.summaryCaminhaoTransferenciaQty.textContent = String(summary.caminhao_transferencia_qty || 0);
-  elements.summaryCaminhaoTransferenciaPct.textContent = formatPercent(summary.caminhao_transferencia_pct);
-  elements.summaryComboTransferenciaQty.textContent = String(summary.combo_transferencia_qty || 0);
-  elements.summaryComboTransferenciaPct.textContent = formatPercent(summary.combo_transferencia_pct);
+  if (elements.summaryCaminhaoTransferenciaQty) {
+    elements.summaryCaminhaoTransferenciaQty.textContent = String(summary.caminhao_transferencia_qty || 0);
+  }
+  if (elements.summaryCaminhaoTransferenciaPct) {
+    elements.summaryCaminhaoTransferenciaPct.textContent = formatPercent(summary.caminhao_transferencia_pct);
+  }
+  if (elements.summaryComboTransferenciaQty) {
+    elements.summaryComboTransferenciaQty.textContent = String(summary.combo_transferencia_qty || 0);
+  }
+  if (elements.summaryComboTransferenciaPct) {
+    elements.summaryComboTransferenciaPct.textContent = formatPercent(summary.combo_transferencia_pct);
+  }
   elements.summaryCautelarQty.textContent = String(summary.cautelar_qty || 0);
   elements.summaryCautelarPct.textContent = formatPercent(summary.cautelar_pct);
   elements.summaryPesquisaQty.textContent = String(summary.pesquisa_qty || 0);
@@ -216,7 +226,9 @@ function renderSummary() {
   elements.summaryTransferenciaTotalValue.textContent = formatCurrency(
     summary.transferencia_group_total_value || summary.transferencia_total_value
   );
-  elements.summaryComboTransferenciaTotalValue.textContent = formatCurrency(summary.combo_transferencia_total_value);
+  if (elements.summaryComboTransferenciaTotalValue) {
+    elements.summaryComboTransferenciaTotalValue.textContent = formatCurrency(summary.combo_transferencia_total_value);
+  }
   elements.summaryCautelarTotalValue.textContent = formatCurrency(summary.cautelar_total_value);
   elements.summaryPesquisaTotalValue.textContent = formatCurrency(summary.pesquisa_total_value);
 }
@@ -384,7 +396,7 @@ async function loadRecords() {
   if (!state.activeMonthKey) state.activeMonthKey = "2026-04";
 
   const params = new URLSearchParams({
-    search: elements.searchInput.value.trim(),
+    search: elements.searchInput?.value.trim() || "",
     month_key: state.activeMonthKey,
     sort_by: state.sortBy,
     sort_order: state.sortOrder,
@@ -409,6 +421,7 @@ async function loadRecords() {
 }
 
 async function saveRecord(event) {
+  if (!elements.form) return;
   event.preventDefault();
   const recordId = elements.recordId.value;
   const response = await fetch(recordId ? `/api/records/${recordId}` : "/api/records", {
@@ -459,14 +472,15 @@ function downloadExport(type) {
 }
 
 function setupEvents() {
-  elements.form.addEventListener("submit", saveRecord);
-  elements.cancelEditButton.addEventListener("click", resetForm);
-  elements.refreshButton.addEventListener("click", loadRecords);
-  elements.newRecordButton.addEventListener("click", resetForm);
-  elements.searchInput.addEventListener("input", loadRecords);
-  elements.exportXlsxButton.addEventListener("click", () => downloadExport("xlsx"));
-  elements.exportPdfButton.addEventListener("click", () => downloadExport("pdf"));
+  if (elements.form) elements.form.addEventListener("submit", saveRecord);
+  if (elements.cancelEditButton) elements.cancelEditButton.addEventListener("click", resetForm);
+  if (elements.refreshButton) elements.refreshButton.addEventListener("click", loadRecords);
+  if (elements.newRecordButton) elements.newRecordButton.addEventListener("click", resetForm);
+  if (elements.searchInput) elements.searchInput.addEventListener("input", loadRecords);
+  if (elements.exportXlsxButton) elements.exportXlsxButton.addEventListener("click", () => downloadExport("xlsx"));
+  if (elements.exportPdfButton) elements.exportPdfButton.addEventListener("click", () => downloadExport("pdf"));
 
+  if (!elements.form) return;
   [
     elements.partnerName,
     elements.transferenciaQty,
@@ -479,10 +493,14 @@ function setupEvents() {
     elements.unitComboTransferencia,
     elements.unitCautelar,
     elements.unitPesquisa,
-  ].forEach((input) => input.addEventListener("input", updateCalculatedTotal));
+  ]
+    .filter(Boolean)
+    .forEach((input) => input.addEventListener("input", updateCalculatedTotal));
 }
 
-setupSorting();
-setupEvents();
-resetForm();
-loadRecords();
+if (elements.recordsBody && elements.monthTabs) {
+  setupSorting();
+  setupEvents();
+  resetForm();
+  loadRecords();
+}

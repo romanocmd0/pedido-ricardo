@@ -1,10 +1,8 @@
 const clientComparisonState = {
   months: [],
   ranking: [],
-  evolution: [],
   barChart: null,
   quantityBarChart: null,
-  lineChart: null,
 };
 
 function formatCurrency(value) {
@@ -80,24 +78,6 @@ function buildQuantityBarChart(labels, values) {
   });
 }
 
-function buildLineChart(labels, datasets) {
-  const canvas = document.querySelector("#client-line-canvas");
-  if (clientComparisonState.lineChart) clientComparisonState.lineChart.destroy();
-  return new Chart(canvas, {
-    type: "line",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#f0d777" } } },
-      scales: {
-        x: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
-        y: { ticks: { color: "#c7d3e2" }, grid: { color: "rgba(212,175,55,0.08)" } },
-      },
-    },
-  });
-}
-
 function renderRankingTable(ranking) {
   const body = document.querySelector("#client-ranking-body");
   if (!ranking.length) {
@@ -135,17 +115,12 @@ function renderCharts(payload) {
       clientComparisonState.barChart.destroy();
       clientComparisonState.barChart = null;
     }
-    if (clientComparisonState.lineChart) {
-      clientComparisonState.lineChart.destroy();
-      clientComparisonState.lineChart = null;
-    }
     if (clientComparisonState.quantityBarChart) {
       clientComparisonState.quantityBarChart.destroy();
       clientComparisonState.quantityBarChart = null;
     }
     setCanvasState("#client-bar-canvas", "#client-bar-empty", false, "Sem dados");
     setCanvasState("#client-quantity-bar-canvas", "#client-quantity-bar-empty", false, "Sem dados");
-    setCanvasState("#client-line-canvas", "#client-line-empty", false, "Sem dados");
     renderRankingTable([]);
     return;
   }
@@ -161,30 +136,6 @@ function renderCharts(payload) {
     ranking.slice(0, 10).map((item) => item.partner_name),
     ranking.slice(0, 10).map((item) => item.vistoria_count),
   );
-
-  const labels = (payload.evolution || []).map((item) => item.month_title);
-  const names = payload.top_names || [];
-  if (!labels.length || !names.length) {
-    if (clientComparisonState.lineChart) {
-      clientComparisonState.lineChart.destroy();
-      clientComparisonState.lineChart = null;
-    }
-    setCanvasState("#client-line-canvas", "#client-line-empty", false, "Sem dados");
-  } else {
-    setCanvasState("#client-line-canvas", "#client-line-empty", true);
-    const palette = ["#d4af37", "#8cc7ff", "#4fd3a7", "#f59f70", "#ff8aa6"];
-    clientComparisonState.lineChart = buildLineChart(
-      labels,
-      names.map((name, index) => ({
-        label: name,
-        data: payload.evolution.map((item) => item[name] || 0),
-        borderColor: palette[index % palette.length],
-        backgroundColor: `${palette[index % palette.length]}33`,
-        fill: false,
-        tension: 0.25,
-      })),
-    );
-  }
 }
 
 async function loadClientComparison() {
@@ -202,7 +153,6 @@ async function loadClientComparison() {
 
   clientComparisonState.months = data.months || [];
   clientComparisonState.ranking = data.ranking || [];
-  clientComparisonState.evolution = data.evolution || [];
   document.querySelector("#client-scope-label").textContent =
     mode === "month" && monthKey
       ? clientComparisonState.months.find((item) => item.month_key === monthKey)?.month_title || "Mes especifico"
@@ -211,16 +161,18 @@ async function loadClientComparison() {
   renderCharts(data);
 }
 
-document.querySelector("#client-view-mode").addEventListener("change", (event) => {
-  const select = document.querySelector("#client-month-select");
-  select.disabled = event.target.value !== "month";
-});
+if (document.querySelector("#client-ranking-body")) {
+  document.querySelector("#client-view-mode")?.addEventListener("change", (event) => {
+    const select = document.querySelector("#client-month-select");
+    if (select) select.disabled = event.target.value !== "month";
+  });
 
-document.querySelector("#apply-client-filter-button").addEventListener("click", loadClientComparison);
+  document.querySelector("#apply-client-filter-button")?.addEventListener("click", loadClientComparison);
 
-(async function init() {
-  const comparison = await fetch("/api/comparison");
-  const data = await comparison.json();
-  if (comparison.ok) populateMonthSelect(data.months || []);
-  await loadClientComparison();
-})();
+  (async function init() {
+    const comparison = await fetch("/api/comparison");
+    const data = await comparison.json();
+    if (comparison.ok) populateMonthSelect(data.months || []);
+    await loadClientComparison();
+  })();
+}

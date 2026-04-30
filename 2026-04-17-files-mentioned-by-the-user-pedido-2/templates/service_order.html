@@ -3,21 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fluxo de Caixa</title>
+    <title>Ordem de Servico</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
   <body>
     <main class="layout">
       <nav class="top-nav">
-        <a class="nav-button" href="/service-order">Ordem de Servico</a>
+        <a class="nav-button is-active" href="/service-order">Ordem de Servico</a>
         <a class="nav-button" href="/">Relatorio Mensal</a>
-        <a class="nav-button is-active" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button" href="/cash-flow">Fluxo de Caixa</a>
       </nav>
 
       <section class="hero">
         <div>
-          <p class="eyebrow">Caixa diario</p>
-          <h1 id="cash-day-title" data-prefix="Fluxo de Caixa de">Fluxo de Caixa</h1>
+          <p class="eyebrow">Entrada principal</p>
+          <h1 id="cash-day-title" data-prefix="Ordem de Servico de">Ordem de Servico</h1>
         </div>
         <div class="hero-card">
           <div>
@@ -43,7 +43,7 @@
             <span>Criar ou abrir data</span>
             <input id="cash-date-input" type="date" />
           </label>
-          <button id="open-cash-day-button" class="primary-button" type="button">Abrir caixa</button>
+          <button id="open-cash-day-button" class="primary-button" type="button">Abrir ordem</button>
           <div id="cash-tree" class="cash-tree"></div>
         </aside>
 
@@ -115,35 +115,6 @@
             </div>
           </form>
 
-          <section class="partner-payment-section">
-            <div class="section-header">
-              <div>
-                <p class="section-tag">Controle separado</p>
-                <h2>Pagamento Parceiros</h2>
-                <p class="form-caption">Registre pagamentos feitos por fora no mesmo dia. Eles aparecem na tabela, mas nao entram nas entradas, no resultado normal nem no cofre.</p>
-              </div>
-            </div>
-            <form id="partner-payment-form" class="partner-payment-form">
-              <div class="partner-payment-grid">
-                <label class="field">
-                  <span>Parceiro / cliente</span>
-                  <input id="partner-payment-name" type="text" required />
-                </label>
-                <label class="field">
-                  <span>Descricao</span>
-                  <input id="partner-payment-description" type="text" placeholder="Opcional" />
-                </label>
-                <label class="field">
-                  <span>Valor</span>
-                  <input id="partner-payment-amount" type="number" min="0" step="0.01" required />
-                </label>
-              </div>
-              <div class="form-actions">
-                <button class="primary-button partner-payment-submit" type="submit">Salvar Pagamento Parceiros</button>
-              </div>
-            </form>
-          </section>
-
           <section class="summary-grid cash-summary-grid">
             <article class="panel stat-card">
               <span class="section-tag">Dinheiro</span>
@@ -203,20 +174,11 @@
               </thead>
               <tbody id="cash-entries-body">
                 <tr>
-                  <td colspan="7" class="empty-state">Selecione uma data para carregar o caixa.</td>
+                  <td colspan="7" class="empty-state">Selecione uma data para carregar os lancamentos.</td>
                 </tr>
               </tbody>
             </table>
           </div>
-
-          <section class="danger-zone">
-            <div>
-              <p class="section-tag">Acao permanente</p>
-              <h2>Excluir caixa diario</h2>
-              <p>Remove todos os lancamentos deste dia e desfaz os impactos vinculados ao Relatorio Mensal.</p>
-            </div>
-            <button id="delete-cash-day-button" class="danger-action-button" type="button">Excluir caixa</button>
-          </section>
         </section>
       </section>
     </main>

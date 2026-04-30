@@ -10,11 +10,9 @@
   <body>
     <main class="layout">
       <nav class="top-nav">
-        <a class="nav-button" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button" href="/service-order">Ordem de Servico</a>
         <a class="nav-button" href="/">Relatorio Mensal</a>
-        <a class="nav-button is-active" href="/comparison">Comparacao de Meses</a>
-        <a class="nav-button" href="/client-comparison">Comparacao entre Clientes</a>
-        <a class="nav-button" href="/partner-requests">Requisicoes Parceiros</a>
+        <a class="nav-button" href="/cash-flow">Fluxo de Caixa</a>
       </nav>
 
       <section class="hero">
@@ -68,50 +66,22 @@
         <article class="panel chart-panel">
           <div class="section-header">
             <div>
-              <p class="section-tag">Comparacao</p>
-              <h2>Evolucao dentro do mes</h2>
+              <p class="section-tag">Transferencias agrupadas</p>
+              <h2>Transferencias x Cautelar x Pesquisa</h2>
             </div>
           </div>
-          <div id="line-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
-          <canvas id="line-chart-canvas" class="chart-canvas hidden"></canvas>
+          <div id="grouped-pie-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <canvas id="grouped-pie-chart-canvas" class="chart-canvas hidden"></canvas>
+          <div class="chart-divider"></div>
+          <div class="section-header compact-header">
+            <div>
+              <p class="section-tag">Quantidade</p>
+              <h2>Operacoes agrupadas</h2>
+            </div>
+          </div>
+          <div id="grouped-quantity-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
+          <canvas id="grouped-quantity-chart-canvas" class="chart-canvas hidden"></canvas>
         </article>
-      </section>
-
-      <section class="panel comparison-tools-panel">
-        <div class="section-header">
-          <div>
-            <p class="section-tag">Analise por cliente</p>
-            <h2>Historico individual</h2>
-          </div>
-        </div>
-        <div class="filters comparison-filters">
-          <label class="field compact search-field">
-            <span>Cliente</span>
-            <select id="client-select"></select>
-          </label>
-        </div>
-        <div class="comparison-grid">
-          <article class="panel chart-panel inner-panel">
-            <div class="section-header">
-              <div>
-                <p class="section-tag">Cliente</p>
-                <h2>Vistorias por mes</h2>
-              </div>
-            </div>
-            <div id="client-visits-empty" class="chart-surface empty-chart">Selecione um cliente para visualizar.</div>
-            <canvas id="client-visits-canvas" class="chart-canvas hidden"></canvas>
-          </article>
-          <article class="panel chart-panel inner-panel">
-            <div class="section-header">
-              <div>
-                <p class="section-tag">Cliente</p>
-                <h2>Valores por mes</h2>
-              </div>
-            </div>
-            <div id="client-values-empty" class="chart-surface empty-chart">Selecione um cliente para visualizar.</div>
-            <canvas id="client-values-canvas" class="chart-canvas hidden"></canvas>
-          </article>
-        </div>
       </section>
 
       <section class="panel comparison-tools-panel">
@@ -171,15 +141,14 @@
               <tr>
                 <th>Mes</th>
                 <th>Total geral</th>
-                <th>Total de Transferencias</th>
-                <th>Total Transf. Combo</th>
+                <th>Transferencias</th>
                 <th>Total Cautelar</th>
                 <th>Total Pesquisa</th>
               </tr>
             </thead>
             <tbody id="comparison-body">
               <tr>
-                <td colspan="6" class="empty-state">Carregando comparacao...</td>
+                <td colspan="5" class="empty-state">Carregando comparacao...</td>
               </tr>
             </tbody>
           </table>

@@ -708,8 +708,14 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         + row["cautelar_qty"]
         + row["pesquisa_qty"]
     )
-    transferencia_group_qty = row["transferencia_qty"] + row["caminhao_transferencia_qty"]
-    transferencia_group_total_value = row["transferencia_total_value"] + row["caminhao_transferencia_total_value"]
+    transferencia_group_qty = (
+        row["transferencia_qty"] + row["caminhao_transferencia_qty"] + row["combo_transferencia_qty"]
+    )
+    transferencia_group_total_value = (
+        row["transferencia_total_value"]
+        + row["caminhao_transferencia_total_value"]
+        + row["combo_transferencia_total_value"]
+    )
 
     def percentage(value: int) -> float:
         if total_operations == 0:
@@ -839,7 +845,11 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             "month_title": row["month_title"],
             "record_count": row["record_count"],
             "total_value": row["total_value"],
-            "transferencia_total_value": row["transferencia_total_value"] + row["caminhao_transferencia_total_value"],
+            "transferencia_total_value": (
+                row["transferencia_total_value"]
+                + row["caminhao_transferencia_total_value"]
+                + row["combo_transferencia_total_value"]
+            ),
             "caminhao_transferencia_total_value": row["caminhao_transferencia_total_value"],
             "combo_transferencia_total_value": row["combo_transferencia_total_value"],
             "cautelar_total_value": row["cautelar_total_value"],
@@ -889,18 +899,9 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
             "has_data": False,
             "pie": [],
             "quantity": [],
-            "line": [],
+            "grouped_pie": [],
+            "grouped_quantity": [],
         }
-
-    line_data: list[dict[str, Any]] = []
-    for index, row in enumerate(rows, start=1):
-        line_data.append(
-            {
-                "label": f"Vistoria {index}",
-                "partner_name": row["partner_name"],
-                "value": round(row["total_value"], 2),
-            }
-        )
 
     pie_data = [
         {"label": "Transferencia", "value": summary["transferencia_total_value"]},
@@ -916,6 +917,16 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
         {"label": "Cautelar", "value": summary["cautelar_qty"]},
         {"label": "Pesquisa", "value": summary["pesquisa_qty"]},
     ]
+    grouped_pie_data = [
+        {"label": "Transferencias", "value": summary["transferencia_group_total_value"]},
+        {"label": "Cautelar", "value": summary["cautelar_total_value"]},
+        {"label": "Pesquisa", "value": summary["pesquisa_total_value"]},
+    ]
+    grouped_quantity_data = [
+        {"label": "Transferencias", "value": summary["transferencia_group_qty"]},
+        {"label": "Cautelar", "value": summary["cautelar_qty"]},
+        {"label": "Pesquisa", "value": summary["pesquisa_qty"]},
+    ]
 
     return {
         "month_key": month_key,
@@ -923,7 +934,8 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
         "has_data": True,
         "pie": pie_data,
         "quantity": quantity_data,
-        "line": line_data,
+        "grouped_pie": grouped_pie_data,
+        "grouped_quantity": grouped_quantity_data,
     }
 
 
@@ -970,7 +982,7 @@ def build_month_metrics(connection: sqlite3.Connection, month_key: str) -> dict[
         "combo_transferencia_total_value": summary["combo_transferencia_total_value"],
         "cautelar_total_value": summary["cautelar_total_value"],
         "pesquisa_total_value": summary["pesquisa_total_value"],
-        "transferencia_qty": summary["transferencia_qty"],
+        "transferencia_qty": summary["transferencia_group_qty"],
         "caminhao_transferencia_qty": summary["caminhao_transferencia_qty"],
         "combo_transferencia_qty": summary["combo_transferencia_qty"],
         "cautelar_qty": summary["cautelar_qty"],
@@ -2245,6 +2257,11 @@ def logout():
 @app.route("/")
 def index() -> str:
     return render_template("index.html")
+
+
+@app.route("/service-order")
+def service_order_page() -> str:
+    return render_template("service_order.html")
 
 
 @app.route("/cash-flow")
