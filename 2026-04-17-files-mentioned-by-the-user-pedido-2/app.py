@@ -2777,24 +2777,6 @@ def delete_client(client_id: int):
     return jsonify({"message": "Cliente excluido com sucesso.", "clients": clients, "items": items, "total_count": len(items)})
 
 
-@app.post("/api/clients/cleanup")
-def cleanup_clients():
-    with get_db() as connection:
-        sync_clients_catalog(connection)
-        stats = cleanup_clients_catalog(connection)
-        clients = get_all_clients(connection)
-        items = get_client_catalog(connection)
-    return jsonify(
-        {
-            "message": "Clientes invalidados/ocultos foram limpos com sucesso.",
-            "stats": stats,
-            "clients": clients,
-            "items": items,
-            "total_count": len(items),
-        }
-    )
-
-
 @app.get("/api/partner-requests")
 def partner_requests():
     with get_db() as connection:

@@ -47,7 +47,6 @@ const cashElements = {
   clientSuggestions: document.querySelector("#client-name-suggestions"),
   clientRegistrationBody: document.querySelector("#client-registration-body"),
   clientRegistrationCount: document.querySelector("#client-registration-count"),
-  clientCleanupButton: document.querySelector("#client-cleanup-button"),
   body: document.querySelector("#cash-entries-body"),
   dinheiro: document.querySelector("#cash-total-dinheiro"),
   debito: document.querySelector("#cash-total-debito"),
@@ -583,18 +582,6 @@ async function deleteClientRegistration(clientId) {
   updateGuidedFlow();
 }
 
-async function cleanupClientRegistrations() {
-  const response = await fetch("/api/clients/cleanup", { method: "POST" });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(data.error || "Nao foi possivel limpar os clientes invalidos.");
-    return;
-  }
-  applyClientCatalog(data.clients || [], data.items || []);
-  resetClientRegistrationForm();
-  updateGuidedFlow();
-}
-
 async function deleteEntry(entryId) {
   if (!window.confirm("Deseja excluir este lancamento?")) return;
   const response = await fetch(`/api/cash-flow/entries/${entryId}`, { method: "DELETE" });
@@ -681,7 +668,6 @@ function setupEvents() {
   cashElements.clientRegistrationName?.addEventListener("change", handleClientRegistrationLookup);
   cashElements.clientRegistrationName?.addEventListener("blur", handleClientRegistrationLookup);
   cashElements.clientRegistrationClear?.addEventListener("click", resetClientRegistrationForm);
-  cashElements.clientCleanupButton?.addEventListener("click", cleanupClientRegistrations);
   cashElements.clearButton?.addEventListener("click", resetCashForm);
   cashElements.exportPdfButton?.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");
