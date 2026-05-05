@@ -15,98 +15,98 @@
         <a class="nav-button" href="/cash-flow">Financeiro</a>
       </nav>
 
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Relatorios</p>
-          <h1 id="active-month-title">-</h1>
-        </div>
-        <div class="hero-card">
-          <div>
-            <span class="hero-label">Registros no mes</span>
-            <strong id="record-count">0</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel tabs-panel">
-        <div class="tabs-header">
-          <div>
-            <p class="section-tag">Navegacao mensal</p>
-            <h2>Meses</h2>
-          </div>
-          <span id="period-count" class="summary-pill neutral-pill">0 meses</span>
-        </div>
-        <div id="month-tabs" class="month-tabs"></div>
-      </section>
-
-      <section class="panel controls-panel">
-        <div class="filters">
-          <label class="field compact search-field">
-            <span>Busca no mes ativo</span>
-            <input id="search-input" type="search" placeholder="Buscar parceiro ou cliente" />
-          </label>
-          <div class="totals-inline">
-            <span class="hero-label">Valor total</span>
-            <strong id="header-total-value">R$ 0,00</strong>
-          </div>
-          <div class="export-actions">
-            <button id="export-xlsx-button" class="secondary-button" type="button">Exportar Excel</button>
-            <button id="export-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
-          </div>
-          <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
-        </div>
-      </section>
-
-      <section class="summary-grid">
-        <article class="panel stat-card">
-          <span class="section-tag">Total do mes</span>
-          <strong id="summary-total-value">R$ 0,00</strong>
-        </article>
-        <article class="panel stat-card">
-          <span class="section-tag">Transferencias</span>
-          <strong id="summary-transferencia-qty">0</strong>
-          <p id="summary-transferencia-pct">0% do total de operacoes</p>
-        </article>
-        <article class="panel stat-card">
-          <span class="section-tag">Cautelares</span>
-          <strong id="summary-cautelar-qty">0</strong>
-          <p id="summary-cautelar-pct">0% do total de operacoes</p>
-        </article>
-        <article class="panel stat-card">
-          <span class="section-tag">Pesquisas</span>
-          <strong id="summary-pesquisa-qty">0</strong>
-          <p id="summary-pesquisa-pct">0% do total de operacoes</p>
-        </article>
-      </section>
-
-      <section class="panel totals-breakdown-panel">
-        <div class="section-header compact-header">
-          <div>
-            <p class="section-tag">Totais detalhados</p>
-            <h2>Financeiro do mes</h2>
-          </div>
-        </div>
-        <div class="totals-breakdown">
-          <div class="breakdown-card">
-            <span>Transferencias</span>
-            <strong id="summary-transferencia-total-value">R$ 0,00</strong>
-          </div>
-          <div class="breakdown-card">
-            <span>Total de Cautelar</span>
-            <strong id="summary-cautelar-total-value">R$ 0,00</strong>
-          </div>
-          <div class="breakdown-card">
-            <span>Total de Pesquisa</span>
-            <strong id="summary-pesquisa-total-value">R$ 0,00</strong>
-          </div>
-        </div>
-      </section>
-
       <section class="panel report-section accordion-section" data-accordion-section="monthly-report">
         <button class="accordion-toggle" type="button" data-accordion-toggle>
           <span>Relatorio Mensal</span>
         </button>
         <div class="accordion-content" data-accordion-content>
+          <section class="hero accordion-hero">
+            <div>
+              <p class="eyebrow">Relatorios</p>
+              <h1 id="active-month-title">-</h1>
+            </div>
+            <div class="hero-card">
+              <div>
+                <span class="hero-label">Registros no mes</span>
+                <strong id="record-count">0</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel tabs-panel inner-panel">
+            <div class="tabs-header">
+              <div>
+                <p class="section-tag">Navegacao mensal</p>
+                <h2>Meses</h2>
+              </div>
+              <span id="period-count" class="summary-pill neutral-pill">0 meses</span>
+            </div>
+            <div id="month-tabs" class="month-tabs"></div>
+          </section>
+
+          <section class="panel controls-panel inner-panel">
+            <div class="filters">
+              <label class="field compact search-field">
+                <span>Busca no mes ativo</span>
+                <input id="search-input" type="search" placeholder="Buscar parceiro ou cliente" />
+              </label>
+              <div class="totals-inline">
+                <span class="hero-label">Valor total</span>
+                <strong id="header-total-value">R$ 0,00</strong>
+              </div>
+              <div class="export-actions">
+                <button id="export-xlsx-button" class="secondary-button" type="button">Exportar Excel</button>
+                <button id="export-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
+              </div>
+              <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
+            </div>
+          </section>
+
+          <section class="summary-grid">
+            <article class="panel stat-card">
+              <span class="section-tag">Total do mes</span>
+              <strong id="summary-total-value">R$ 0,00</strong>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Transferencias</span>
+              <strong id="summary-transferencia-qty">0</strong>
+              <p id="summary-transferencia-pct">0% do total de operacoes</p>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Cautelares</span>
+              <strong id="summary-cautelar-qty">0</strong>
+              <p id="summary-cautelar-pct">0% do total de operacoes</p>
+            </article>
+            <article class="panel stat-card">
+              <span class="section-tag">Pesquisas</span>
+              <strong id="summary-pesquisa-qty">0</strong>
+              <p id="summary-pesquisa-pct">0% do total de operacoes</p>
+            </article>
+          </section>
+
+          <section class="panel totals-breakdown-panel inner-panel">
+            <div class="section-header compact-header">
+              <div>
+                <p class="section-tag">Totais detalhados</p>
+                <h2>Financeiro do mes</h2>
+              </div>
+            </div>
+            <div class="totals-breakdown">
+              <div class="breakdown-card">
+                <span>Transferencias</span>
+                <strong id="summary-transferencia-total-value">R$ 0,00</strong>
+              </div>
+              <div class="breakdown-card">
+                <span>Total de Cautelar</span>
+                <strong id="summary-cautelar-total-value">R$ 0,00</strong>
+              </div>
+              <div class="breakdown-card">
+                <span>Total de Pesquisa</span>
+                <strong id="summary-pesquisa-total-value">R$ 0,00</strong>
+              </div>
+            </div>
+          </section>
+
           <div class="section-header">
             <div>
               <p class="section-tag">Relatorio mensal principal</p>
