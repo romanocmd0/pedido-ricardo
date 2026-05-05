@@ -2722,11 +2722,26 @@ def client_comparison():
 @app.get("/api/clients")
 def list_clients():
     with get_db() as connection:
-        sync_clients_catalog(connection)
         cleanup_clients_catalog(connection)
         clients = get_all_clients(connection)
         items = get_client_catalog(connection)
     return jsonify({"clients": clients, "items": items, "total_count": len(items)})
+
+
+@app.delete("/api/clients")
+def clear_all_clients():
+    with get_db() as connection:
+        connection.execute("DELETE FROM clients")
+        clients = get_all_clients(connection)
+        items = get_client_catalog(connection)
+    return jsonify(
+        {
+            "message": "Todos os clientes cadastrados foram excluidos com sucesso.",
+            "clients": clients,
+            "items": items,
+            "total_count": len(items),
+        }
+    )
 
 
 @app.post("/api/clients")
