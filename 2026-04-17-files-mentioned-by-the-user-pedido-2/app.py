@@ -2679,6 +2679,18 @@ def edit_client(client_id: int):
     return jsonify({"message": "Cliente atualizado com sucesso.", "client": saved_client, "clients": clients, "items": items})
 
 
+@app.delete("/api/clients/<int:client_id>")
+def delete_client(client_id: int):
+    with get_db() as connection:
+        existing = connection.execute("SELECT id FROM clients WHERE id = ?", (client_id,)).fetchone()
+        if existing is None:
+            return jsonify({"error": "Cliente nao encontrado."}), 404
+        connection.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+        clients = get_all_clients(connection)
+        items = get_client_catalog(connection)
+    return jsonify({"message": "Cliente excluido com sucesso.", "clients": clients, "items": items})
+
+
 @app.get("/api/partner-requests")
 def partner_requests():
     with get_db() as connection:

@@ -430,6 +430,12 @@ a { color: inherit; text-decoration: none; }
   background: rgba(255,255,255,0.03);
   margin-bottom: 20px;
 }
+.client-list-header {
+  margin-top: 18px;
+}
+.client-table {
+  min-width: 980px;
+}
 .partner-payment-section .section-header {
   margin-bottom: 12px;
 }

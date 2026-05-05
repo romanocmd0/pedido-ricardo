@@ -45,6 +45,7 @@ const cashElements = {
   clientPricePesquisa: document.querySelector("#client-price-pesquisa"),
   clientPriceDiversos: document.querySelector("#client-price-diversos"),
   clientSuggestions: document.querySelector("#client-name-suggestions"),
+  clientRegistrationBody: document.querySelector("#client-registration-body"),
   body: document.querySelector("#cash-entries-body"),
   dinheiro: document.querySelector("#cash-total-dinheiro"),
   debito: document.querySelector("#cash-total-debito"),
@@ -164,6 +165,52 @@ function applyClientCatalog(clients, items) {
   cashState.clientNames = clients || [];
   cashState.clients = items || [];
   renderClientSuggestions(cashState.clientNames);
+  renderClientTable();
+}
+
+function renderClientTable() {
+  if (!cashElements.clientRegistrationBody) return;
+  if (!cashState.clients.length) {
+    cashElements.clientRegistrationBody.innerHTML =
+      '<tr><td colspan="8" class="empty-state">Nenhum cliente cadastrado ainda.</td></tr>';
+    return;
+  }
+
+  cashElements.clientRegistrationBody.innerHTML = "";
+  cashState.clients.forEach((client) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(client.client_name)}</td>
+      <td>${formatCurrency(client.price_transferencia)}</td>
+      <td>${formatCurrency(client.price_caminhao_transferencia)}</td>
+      <td>${formatCurrency(client.price_combo_transferencia)}</td>
+      <td>${formatCurrency(client.price_cautelar)}</td>
+      <td>${formatCurrency(client.price_pesquisa)}</td>
+      <td>${formatCurrency(client.price_diversos)}</td>
+      <td></td>
+    `;
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "icon-button";
+    editButton.textContent = "Editar";
+    editButton.addEventListener("click", () => {
+      fillClientRegistrationForm(client);
+      cashElements.clientRegistrationName?.focus();
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "icon-button danger-button";
+    deleteButton.textContent = "Excluir";
+    deleteButton.addEventListener("click", () => deleteClientRegistration(client.id));
+
+    actions.append(editButton, deleteButton);
+    row.querySelector("td:last-child").appendChild(actions);
+    cashElements.clientRegistrationBody.appendChild(row);
+  });
 }
 
 async function loadClientSuggestions() {
@@ -513,6 +560,21 @@ async function saveClientRegistration(event) {
   }
   applyClientCatalog(data.clients || [], data.items || []);
   resetClientRegistrationForm();
+  updateGuidedFlow();
+}
+
+async function deleteClientRegistration(clientId) {
+  if (!window.confirm("Tem certeza que deseja excluir este cliente?")) return;
+  const response = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel excluir o cliente.");
+    return;
+  }
+  applyClientCatalog(data.clients || [], data.items || []);
+  if (String(cashElements.clientRegistrationId?.value || "") === String(clientId)) {
+    resetClientRegistrationForm();
+  }
   updateGuidedFlow();
 }
 

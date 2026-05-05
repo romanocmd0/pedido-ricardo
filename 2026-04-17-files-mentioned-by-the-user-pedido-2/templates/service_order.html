@@ -59,6 +59,34 @@
               <button id="client-registration-clear" class="secondary-button" type="button">Limpar</button>
             </div>
           </form>
+
+          <div class="section-header client-list-header">
+            <div>
+              <p class="section-tag">Clientes cadastrados</p>
+              <h2>Gerenciar clientes</h2>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="client-table">
+              <thead>
+                <tr>
+                  <th>Nome do cliente</th>
+                  <th>Valor Transferencia</th>
+                  <th>Valor Transf. Caminhao</th>
+                  <th>Valor Transf. do Combo</th>
+                  <th>Valor Cautelar</th>
+                  <th>Valor Pesquisa</th>
+                  <th>Valor Diversos</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="client-registration-body">
+                <tr>
+                  <td colspan="8" class="empty-state">Carregando clientes cadastrados...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <div class="section-header service-order-header">
@@ -71,12 +99,6 @@
           <div>
             <p class="section-tag">Alimentacao manual</p>
             <h2>Lancamentos do dia</h2>
-          </div>
-          <div class="form-actions">
-            <button id="export-cash-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
-            <button id="export-cash-month-pdf-button" class="secondary-button" type="button">Exportar PDF mensal</button>
-            <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
-            <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
           </div>
         </div>
 
