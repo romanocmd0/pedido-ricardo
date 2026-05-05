@@ -14,209 +14,222 @@
         <a class="nav-button" href="/cash-flow">Financeiro</a>
       </nav>
 
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Entrada principal</p>
-          <h1 id="cash-day-title" data-prefix="Ordem de Servico de">Ordem de Servico</h1>
-        </div>
-        <div class="hero-card">
-          <div>
-            <span class="hero-label">Data da ordem</span>
-            <input id="cash-date-input" class="hero-date-input" type="date" />
-          </div>
-          <div>
-            <span class="hero-label">Resultado do dia</span>
-            <strong id="cash-result">R$ 0,00</strong>
-          </div>
-          <div>
-            <span class="hero-label">Status</span>
-            <strong id="cash-status">Aberto</strong>
-          </div>
-        </div>
-      </section>
-
       <section class="panel cash-main-panel service-order-panel">
-          <section class="client-registration-section">
-            <div class="section-header">
-              <div>
-                <p class="section-tag">Cadastro</p>
-                <h2>Cadastrar cliente</h2>
-              </div>
-            </div>
-            <form id="client-registration-form" class="partner-payment-form">
-              <div class="partner-payment-grid">
-                <label class="field">
-                  <span>Nome do cliente</span>
-                  <input id="client-registration-name" type="text" required />
-                </label>
-              </div>
-              <div class="form-actions">
-                <button class="primary-button" type="submit">Cadastrar cliente</button>
-              </div>
-            </form>
-          </section>
-
+        <section class="client-registration-section">
           <div class="section-header">
             <div>
-              <p class="section-tag">Alimentacao manual</p>
-              <h2>Lancamentos do dia</h2>
-            </div>
-            <div class="form-actions">
-              <button id="export-cash-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
-              <button id="export-cash-month-pdf-button" class="secondary-button" type="button">Exportar PDF mensal</button>
-              <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
-              <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
+              <p class="section-tag">Cadastro</p>
+              <h2>Cadastrar cliente</h2>
             </div>
           </div>
-
-          <form id="cash-entry-form" class="cash-entry-form">
-            <input id="cash-entry-id" type="hidden" />
-            <div class="cash-form-grid">
+          <form id="client-registration-form" class="partner-payment-form">
+            <input id="client-registration-id" type="hidden" />
+            <div class="client-registration-grid">
               <label class="field">
                 <span>Nome do cliente</span>
-                <input id="cash-customer-name" type="text" list="client-name-suggestions" required />
+                <input id="client-registration-name" type="text" list="client-name-suggestions" required />
               </label>
               <label class="field">
-                <span>Placa</span>
-                <input id="cash-plate" type="text" />
+                <span>Valor Transferencia</span>
+                <input id="client-price-transferencia" type="number" min="0" step="0.01" value="0" />
               </label>
               <label class="field">
-                <span>Servico</span>
-                <select id="cash-service-name" required>
-                  <option value="">Selecione</option>
-                  <option value="Transferencia">Transferencia</option>
-                  <option value="Transf. de Caminhao">Transf. de Caminhao</option>
-                  <option value="Transf. do Combo">Transf. do Combo</option>
-                  <option value="Cautelar">Cautelar</option>
-                  <option value="Pesquisa">Pesquisa</option>
-                  <option value="Diversos">Diversos</option>
-                </select>
+                <span>Valor Transf. Caminhao</span>
+                <input id="client-price-caminhao-transferencia" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Transf. do Combo</span>
+                <input id="client-price-combo-transferencia" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Cautelar</span>
+                <input id="client-price-cautelar" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Pesquisa</span>
+                <input id="client-price-pesquisa" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Diversos</span>
+                <input id="client-price-diversos" type="number" min="0" step="0.01" value="0" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button id="client-registration-submit" class="primary-button" type="submit">Cadastrar cliente</button>
+              <button id="client-registration-clear" class="secondary-button" type="button">Limpar</button>
+            </div>
+          </form>
+        </section>
+
+        <div class="section-header service-order-header">
+          <div class="service-order-date-field">
+            <label class="field compact">
+              <span>Data da Ordem</span>
+              <input id="cash-date-input" type="date" />
+            </label>
+          </div>
+          <div>
+            <p class="section-tag">Alimentacao manual</p>
+            <h2>Lancamentos do dia</h2>
+          </div>
+          <div class="form-actions">
+            <button id="export-cash-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
+            <button id="export-cash-month-pdf-button" class="secondary-button" type="button">Exportar PDF mensal</button>
+            <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
+            <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
+          </div>
+        </div>
+
+        <form id="cash-entry-form" class="cash-entry-form guided-order-form">
+          <input id="cash-entry-id" type="hidden" />
+          <div class="cash-form-grid guided-cash-form-grid">
+            <label class="field">
+              <span>Cliente</span>
+              <input id="cash-customer-name" type="text" list="client-name-suggestions" required disabled />
+            </label>
+            <label class="field">
+              <span>Placa</span>
+              <input id="cash-plate" type="text" maxlength="8" placeholder="ABC-1234" required disabled />
+              <small id="cash-plate-help" class="field-help">Use o formato XXX-XXXX.</small>
+            </label>
+            <label class="field">
+              <span>Servico</span>
+              <select id="cash-service-name" required disabled>
+                <option value="">Selecione</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Transf. de Caminhao">Transf. de Caminhao</option>
+                <option value="Transf. do Combo">Transf. do Combo</option>
+                <option value="Cautelar">Cautelar</option>
+                <option value="Pesquisa">Pesquisa</option>
+                <option value="Diversos">Diversos</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Valor</span>
+              <input id="cash-amount" type="number" min="0" step="0.01" required readonly disabled />
+            </label>
+            <label class="field">
+              <span>Forma de pagamento</span>
+              <select id="cash-payment-method" required disabled>
+                <option value="">Selecione</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Pix">Pix</option>
+                <option value="Debito">Debito</option>
+                <option value="Credito">Credito</option>
+                <option value="Rec">Rec</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Tipo</span>
+              <select id="cash-flow-type" disabled>
+                <option value="">Selecione</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saida</option>
+                <option value="deposito">Deposito</option>
+                <option value="pagamento_parceiros">Pagamento Parceiros</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button id="save-cash-entry-button" class="primary-button" type="submit" disabled>Salvar lancamento</button>
+            <button id="clear-cash-form-button" class="secondary-button" type="button">Limpar</button>
+          </div>
+        </form>
+
+        <section class="partner-payment-section">
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Controle separado</p>
+              <h2>Pagamento Parceiros</h2>
+              <p class="form-caption">Registre pagamentos feitos por fora no mesmo dia. Eles aparecem na tabela, mas nao entram nas entradas, no resultado normal nem no cofre.</p>
+            </div>
+          </div>
+          <form id="partner-payment-form" class="partner-payment-form">
+            <div class="partner-payment-grid">
+              <label class="field">
+                <span>Parceiro / cliente</span>
+                <input id="partner-payment-name" type="text" list="client-name-suggestions" required />
+              </label>
+              <label class="field">
+                <span>Descricao</span>
+                <input id="partner-payment-description" type="text" placeholder="Opcional" />
               </label>
               <label class="field">
                 <span>Valor</span>
-                <input id="cash-amount" type="number" min="0" step="0.01" required />
-              </label>
-              <label class="field">
-                <span>Forma de pagamento</span>
-                <select id="cash-payment-method" required>
-                  <option value="">Selecione</option>
-                  <option value="Dinheiro">Dinheiro</option>
-                  <option value="Pix">Pix</option>
-                  <option value="Debito">Debito</option>
-                  <option value="Credito">Credito</option>
-                  <option value="Rec">Rec</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Tipo</span>
-                <select id="cash-flow-type">
-                  <option value="entrada">Entrada</option>
-                  <option value="saida">Saida</option>
-                  <option value="deposito">Deposito</option>
-                  <option value="pagamento_parceiros">Pagamento Parceiros</option>
-                </select>
+                <input id="partner-payment-amount" type="number" min="0" step="0.01" required />
               </label>
             </div>
             <div class="form-actions">
-              <button class="primary-button" type="submit">Salvar lancamento</button>
-              <button id="clear-cash-form-button" class="secondary-button" type="button">Limpar</button>
+              <button class="primary-button partner-payment-submit" type="submit">Salvar Pagamento Parceiros</button>
             </div>
           </form>
+        </section>
 
-          <section class="partner-payment-section">
-            <div class="section-header">
-              <div>
-                <p class="section-tag">Controle separado</p>
-                <h2>Pagamento Parceiros</h2>
-                <p class="form-caption">Registre pagamentos feitos por fora no mesmo dia. Eles aparecem na tabela, mas nao entram nas entradas, no resultado normal nem no cofre.</p>
-              </div>
-            </div>
-            <form id="partner-payment-form" class="partner-payment-form">
-              <div class="partner-payment-grid">
-                <label class="field">
-                  <span>Parceiro / cliente</span>
-                  <input id="partner-payment-name" type="text" list="client-name-suggestions" required />
-                </label>
-                <label class="field">
-                  <span>Descricao</span>
-                  <input id="partner-payment-description" type="text" placeholder="Opcional" />
-                </label>
-                <label class="field">
-                  <span>Valor</span>
-                  <input id="partner-payment-amount" type="number" min="0" step="0.01" required />
-                </label>
-              </div>
-              <div class="form-actions">
-                <button class="primary-button partner-payment-submit" type="submit">Salvar Pagamento Parceiros</button>
-              </div>
-            </form>
-          </section>
+        <section class="summary-grid cash-summary-grid">
+          <article class="panel stat-card">
+            <span class="section-tag">Dinheiro</span>
+            <strong id="cash-total-dinheiro">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Cartao debito</span>
+            <strong id="cash-total-debito">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Cartao credito</span>
+            <strong id="cash-total-credito">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">PIX</span>
+            <strong id="cash-total-pix">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Outras</span>
+            <strong id="cash-total-outras">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Cofre atual</span>
+            <strong id="cash-vault-balance">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Entrada</span>
+            <strong id="cash-total-in">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Saida</span>
+            <strong id="cash-total-out">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card">
+            <span class="section-tag">Depositos</span>
+            <strong id="cash-total-deposit">R$ 0,00</strong>
+          </article>
+          <article class="panel stat-card partner-payment-card">
+            <span class="section-tag">Total Pagamento Parceiros</span>
+            <strong id="cash-total-partner-payment">R$ 0,00</strong>
+            <p>Controle separado do resultado normal.</p>
+          </article>
+        </section>
 
-          <section class="summary-grid cash-summary-grid">
-            <article class="panel stat-card">
-              <span class="section-tag">Dinheiro</span>
-              <strong id="cash-total-dinheiro">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Cartao debito</span>
-              <strong id="cash-total-debito">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Cartao credito</span>
-              <strong id="cash-total-credito">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">PIX</span>
-              <strong id="cash-total-pix">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Outras</span>
-              <strong id="cash-total-outras">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Cofre atual</span>
-              <strong id="cash-vault-balance">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Entrada</span>
-              <strong id="cash-total-in">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Saida</span>
-              <strong id="cash-total-out">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Depositos</span>
-              <strong id="cash-total-deposit">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card partner-payment-card">
-              <span class="section-tag">Total Pagamento Parceiros</span>
-              <strong id="cash-total-partner-payment">R$ 0,00</strong>
-              <p>Controle separado do resultado normal.</p>
-            </article>
-          </section>
-
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Placa</th>
-                  <th>Servico</th>
-                  <th>Valor</th>
-                  <th>Pagamento</th>
-                  <th>Tipo</th>
-                  <th>Acoes</th>
-                </tr>
-              </thead>
-              <tbody id="cash-entries-body">
-                <tr>
-                  <td colspan="7" class="empty-state">Selecione uma data para carregar os lancamentos.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <datalist id="client-name-suggestions"></datalist>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Placa</th>
+                <th>Servico</th>
+                <th>Valor</th>
+                <th>Pagamento</th>
+                <th>Tipo</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="cash-entries-body">
+              <tr>
+                <td colspan="7" class="empty-state">Selecione uma data para carregar os lancamentos.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <datalist id="client-name-suggestions"></datalist>
       </section>
     </main>
 

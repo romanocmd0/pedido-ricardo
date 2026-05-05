@@ -143,6 +143,16 @@ def normalize_client_name(value: str | None) -> str:
     return " ".join((value or "").strip().split())
 
 
+CLIENT_PRICE_FIELDS = {
+    "Transferencia": "price_transferencia",
+    "Transf. de Caminhao": "price_caminhao_transferencia",
+    "Transf. do Combo": "price_combo_transferencia",
+    "Cautelar": "price_cautelar",
+    "Pesquisa": "price_pesquisa",
+    "Diversos": "price_diversos",
+}
+
+
 def emv_field(field_id: str, value: str) -> str:
     return f"{field_id}{len(value):02d}{value}"
 
@@ -863,6 +873,40 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     ]
 
 
+def get_client_price_payload(payload: dict[str, Any]) -> dict[str, float]:
+    prices = {
+        "price_transferencia": round(to_float(payload.get("price_transferencia"), "price_transferencia"), 2),
+        "price_caminhao_transferencia": round(
+            to_float(payload.get("price_caminhao_transferencia"), "price_caminhao_transferencia"), 2
+        ),
+        "price_combo_transferencia": round(
+            to_float(payload.get("price_combo_transferencia"), "price_combo_transferencia"), 2
+        ),
+        "price_cautelar": round(to_float(payload.get("price_cautelar"), "price_cautelar"), 2),
+        "price_pesquisa": round(to_float(payload.get("price_pesquisa"), "price_pesquisa"), 2),
+        "price_diversos": round(to_float(payload.get("price_diversos"), "price_diversos"), 2),
+    }
+    if any(value < 0 for value in prices.values()):
+        raise ValueError("Os valores do cadastro nao podem ser negativos.")
+    return prices
+
+
+def get_external_client_names(connection: sqlite3.Connection) -> list[str]:
+    rows = connection.execute(
+        """
+        SELECT partner_name AS client_name
+        FROM records
+        WHERE TRIM(partner_name) <> ''
+        UNION
+        SELECT customer_name AS client_name
+        FROM cash_entries
+        WHERE TRIM(customer_name) <> ''
+        ORDER BY client_name
+        """
+    ).fetchall()
+    return [row["client_name"] for row in rows]
+
+
 def get_all_clients(connection: sqlite3.Connection) -> list[str]:
     rows = connection.execute(
         """
@@ -883,7 +927,49 @@ def get_all_clients(connection: sqlite3.Connection) -> list[str]:
     return [row["client_name"] for row in rows]
 
 
-def register_client(connection: sqlite3.Connection, client_name: str) -> str:
+def sync_clients_catalog(connection: sqlite3.Connection) -> None:
+    current_rows = connection.execute("SELECT client_name FROM clients").fetchall()
+    current_names = {normalize_text(row["client_name"]) for row in current_rows}
+    for client_name in get_external_client_names(connection):
+        if normalize_text(client_name) in current_names:
+            continue
+        upsert_client_from_system(connection, client_name)
+        current_names.add(normalize_text(client_name))
+
+
+def get_client_catalog(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT
+            id,
+            client_name,
+            price_transferencia,
+            price_caminhao_transferencia,
+            price_combo_transferencia,
+            price_cautelar,
+            price_pesquisa,
+            price_diversos
+        FROM clients
+        WHERE TRIM(client_name) <> ''
+        ORDER BY client_name
+        """
+    ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "client_name": row["client_name"],
+            "price_transferencia": float(row["price_transferencia"] or 0),
+            "price_caminhao_transferencia": float(row["price_caminhao_transferencia"] or 0),
+            "price_combo_transferencia": float(row["price_combo_transferencia"] or 0),
+            "price_cautelar": float(row["price_cautelar"] or 0),
+            "price_pesquisa": float(row["price_pesquisa"] or 0),
+            "price_diversos": float(row["price_diversos"] or 0),
+        }
+        for row in rows
+    ]
+
+
+def register_client(connection: sqlite3.Connection, client_name: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     normalized_name = normalize_client_name(client_name)
     if not normalized_name:
         raise ValueError("O nome do cliente e obrigatorio.")
@@ -892,14 +978,92 @@ def register_client(connection: sqlite3.Connection, client_name: str) -> str:
     if any(normalize_text(item) == normalize_text(normalized_name) for item in rows):
         raise ValueError("Esse cliente ja esta cadastrado.")
 
+    prices = get_client_price_payload(payload or {})
     connection.execute(
         """
-        INSERT INTO clients (client_name, created_at, updated_at)
-        VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO clients (
+            client_name,
+            price_transferencia,
+            price_caminhao_transferencia,
+            price_combo_transferencia,
+            price_cautelar,
+            price_pesquisa,
+            price_diversos,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
-        (normalized_name,),
+        (
+            normalized_name,
+            prices["price_transferencia"],
+            prices["price_caminhao_transferencia"],
+            prices["price_combo_transferencia"],
+            prices["price_cautelar"],
+            prices["price_pesquisa"],
+            prices["price_diversos"],
+        ),
     )
-    return normalized_name
+    row = connection.execute("SELECT * FROM clients WHERE client_name = ?", (normalized_name,)).fetchone()
+    return {
+        "id": row["id"],
+        "client_name": row["client_name"],
+        "price_transferencia": float(row["price_transferencia"] or 0),
+        "price_caminhao_transferencia": float(row["price_caminhao_transferencia"] or 0),
+        "price_combo_transferencia": float(row["price_combo_transferencia"] or 0),
+        "price_cautelar": float(row["price_cautelar"] or 0),
+        "price_pesquisa": float(row["price_pesquisa"] or 0),
+        "price_diversos": float(row["price_diversos"] or 0),
+    }
+
+
+def update_client(connection: sqlite3.Connection, client_id: int, client_name: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    normalized_name = normalize_client_name(client_name)
+    if not normalized_name:
+        raise ValueError("O nome do cliente e obrigatorio.")
+    existing = connection.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+    if existing is None:
+        raise ValueError("Cliente nao encontrado.")
+    duplicate = connection.execute("SELECT id, client_name FROM clients WHERE id <> ?", (client_id,)).fetchall()
+    if any(normalize_text(row["client_name"]) == normalize_text(normalized_name) for row in duplicate):
+        raise ValueError("Esse cliente ja esta cadastrado.")
+    prices = get_client_price_payload(payload or {})
+    connection.execute(
+        """
+        UPDATE clients
+        SET
+            client_name = ?,
+            price_transferencia = ?,
+            price_caminhao_transferencia = ?,
+            price_combo_transferencia = ?,
+            price_cautelar = ?,
+            price_pesquisa = ?,
+            price_diversos = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            normalized_name,
+            prices["price_transferencia"],
+            prices["price_caminhao_transferencia"],
+            prices["price_combo_transferencia"],
+            prices["price_cautelar"],
+            prices["price_pesquisa"],
+            prices["price_diversos"],
+            client_id,
+        ),
+    )
+    row = connection.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
+    return {
+        "id": row["id"],
+        "client_name": row["client_name"],
+        "price_transferencia": float(row["price_transferencia"] or 0),
+        "price_caminhao_transferencia": float(row["price_caminhao_transferencia"] or 0),
+        "price_combo_transferencia": float(row["price_combo_transferencia"] or 0),
+        "price_cautelar": float(row["price_cautelar"] or 0),
+        "price_pesquisa": float(row["price_pesquisa"] or 0),
+        "price_diversos": float(row["price_diversos"] or 0),
+    }
 
 
 def upsert_client_from_system(connection: sqlite3.Connection, client_name: str) -> None:
@@ -911,8 +1075,18 @@ def upsert_client_from_system(connection: sqlite3.Connection, client_name: str) 
         return
     connection.execute(
         """
-        INSERT INTO clients (client_name, created_at, updated_at)
-        VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO clients (
+            client_name,
+            price_transferencia,
+            price_caminhao_transferencia,
+            price_combo_transferencia,
+            price_cautelar,
+            price_pesquisa,
+            price_diversos,
+            created_at,
+            updated_at
+        )
+        VALUES (?, 0, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
         (normalized_name,),
     )
@@ -2078,6 +2252,12 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS clients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_name TEXT NOT NULL UNIQUE,
+                price_transferencia REAL NOT NULL DEFAULT 0,
+                price_caminhao_transferencia REAL NOT NULL DEFAULT 0,
+                price_combo_transferencia REAL NOT NULL DEFAULT 0,
+                price_cautelar REAL NOT NULL DEFAULT 0,
+                price_pesquisa REAL NOT NULL DEFAULT 0,
+                price_diversos REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
@@ -2155,6 +2335,19 @@ def init_db() -> None:
             connection.execute("ALTER TABLE records ADD COLUMN caminhao_transferencia_qty INTEGER NOT NULL DEFAULT 0")
         if "unit_caminhao_transferencia" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN unit_caminhao_transferencia REAL NOT NULL DEFAULT 0")
+        client_columns = {row["name"] for row in connection.execute("PRAGMA table_info(clients)").fetchall()}
+        if "price_transferencia" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_transferencia REAL NOT NULL DEFAULT 0")
+        if "price_caminhao_transferencia" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_caminhao_transferencia REAL NOT NULL DEFAULT 0")
+        if "price_combo_transferencia" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_combo_transferencia REAL NOT NULL DEFAULT 0")
+        if "price_cautelar" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_cautelar REAL NOT NULL DEFAULT 0")
+        if "price_pesquisa" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_pesquisa REAL NOT NULL DEFAULT 0")
+        if "price_diversos" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_diversos REAL NOT NULL DEFAULT 0")
         cash_columns = {row["name"] for row in connection.execute("PRAGMA table_info(cash_entries)").fetchall()}
         if "request_payment_status" not in cash_columns:
             connection.execute("ALTER TABLE cash_entries ADD COLUMN request_payment_status TEXT NOT NULL DEFAULT 'em_aberto'")
@@ -2451,20 +2644,39 @@ def client_comparison():
 @app.get("/api/clients")
 def list_clients():
     with get_db() as connection:
+        sync_clients_catalog(connection)
         clients = get_all_clients(connection)
-    return jsonify({"clients": clients})
+        items = get_client_catalog(connection)
+    return jsonify({"clients": clients, "items": items})
 
 
 @app.post("/api/clients")
 def create_client():
-    client_name = (request.get_json(silent=True) or {}).get("client_name", "")
+    payload = request.get_json(silent=True) or {}
+    client_name = payload.get("client_name", "")
     try:
         with get_db() as connection:
-            saved_name = register_client(connection, client_name)
+            saved_client = register_client(connection, client_name, payload)
             clients = get_all_clients(connection)
+            items = get_client_catalog(connection)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify({"message": "Cliente cadastrado com sucesso.", "client_name": saved_name, "clients": clients}), 201
+    return jsonify({"message": "Cliente cadastrado com sucesso.", "client": saved_client, "clients": clients, "items": items}), 201
+
+
+@app.put("/api/clients/<int:client_id>")
+def edit_client(client_id: int):
+    payload = request.get_json(silent=True) or {}
+    client_name = payload.get("client_name", "")
+    try:
+        with get_db() as connection:
+            saved_client = update_client(connection, client_id, client_name, payload)
+            clients = get_all_clients(connection)
+            items = get_client_catalog(connection)
+    except ValueError as exc:
+        status_code = 404 if "nao encontrado" in str(exc).lower() else 400
+        return jsonify({"error": str(exc)}), status_code
+    return jsonify({"message": "Cliente atualizado com sucesso.", "client": saved_client, "clients": clients, "items": items})
 
 
 @app.get("/api/partner-requests")

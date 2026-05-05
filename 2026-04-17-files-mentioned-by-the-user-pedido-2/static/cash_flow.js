@@ -2,6 +2,8 @@ const cashState = {
   activeDate: new Date().toISOString().slice(0, 10),
   entries: [],
   day: null,
+  clientNames: [],
+  clients: [],
 };
 
 const cashElements = {
@@ -18,20 +20,31 @@ const cashElements = {
   deleteDayButton: document.querySelector("#delete-cash-day-button"),
   form: document.querySelector("#cash-entry-form"),
   partnerPaymentForm: document.querySelector("#partner-payment-form"),
+  clientRegistrationForm: document.querySelector("#client-registration-form"),
   entryId: document.querySelector("#cash-entry-id"),
   customerName: document.querySelector("#cash-customer-name"),
   plate: document.querySelector("#cash-plate"),
+  plateHelp: document.querySelector("#cash-plate-help"),
   serviceName: document.querySelector("#cash-service-name"),
   amount: document.querySelector("#cash-amount"),
+  paymentMethod: document.querySelector("#cash-payment-method"),
+  flowType: document.querySelector("#cash-flow-type"),
+  saveButton: document.querySelector("#save-cash-entry-button"),
+  clearButton: document.querySelector("#clear-cash-form-button"),
   partnerPaymentName: document.querySelector("#partner-payment-name"),
   partnerPaymentDescription: document.querySelector("#partner-payment-description"),
   partnerPaymentAmount: document.querySelector("#partner-payment-amount"),
-  clientRegistrationForm: document.querySelector("#client-registration-form"),
+  clientRegistrationId: document.querySelector("#client-registration-id"),
   clientRegistrationName: document.querySelector("#client-registration-name"),
+  clientRegistrationSubmit: document.querySelector("#client-registration-submit"),
+  clientRegistrationClear: document.querySelector("#client-registration-clear"),
+  clientPriceTransferencia: document.querySelector("#client-price-transferencia"),
+  clientPriceCaminhaoTransferencia: document.querySelector("#client-price-caminhao-transferencia"),
+  clientPriceComboTransferencia: document.querySelector("#client-price-combo-transferencia"),
+  clientPriceCautelar: document.querySelector("#client-price-cautelar"),
+  clientPricePesquisa: document.querySelector("#client-price-pesquisa"),
+  clientPriceDiversos: document.querySelector("#client-price-diversos"),
   clientSuggestions: document.querySelector("#client-name-suggestions"),
-  paymentMethod: document.querySelector("#cash-payment-method"),
-  flowType: document.querySelector("#cash-flow-type"),
-  clearButton: document.querySelector("#clear-cash-form-button"),
   body: document.querySelector("#cash-entries-body"),
   dinheiro: document.querySelector("#cash-total-dinheiro"),
   debito: document.querySelector("#cash-total-debito"),
@@ -49,6 +62,16 @@ const cashPageMode = {
   hasEntryForm: Boolean(cashElements.form),
   hasPartnerPaymentForm: Boolean(cashElements.partnerPaymentForm),
   hasTree: Boolean(cashElements.tree),
+  hasClientRegistration: Boolean(cashElements.clientRegistrationForm),
+};
+
+const servicePriceFieldMap = {
+  Transferencia: "price_transferencia",
+  "Transf. de Caminhao": "price_caminhao_transferencia",
+  "Transf. do Combo": "price_combo_transferencia",
+  Cautelar: "price_cautelar",
+  Pesquisa: "price_pesquisa",
+  Diversos: "price_diversos",
 };
 
 function formatCurrency(value) {
@@ -64,10 +87,34 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function normalizePlate(value) {
+  const raw = String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (raw.length <= 3) return raw;
+  return `${raw.slice(0, 3)}-${raw.slice(3, 7)}`;
+}
+
+function isValidPlate(value) {
+  return /^[A-Z0-9]{3}-[A-Z0-9]{4}$/.test(String(value || "").toUpperCase());
+}
+
+function findClientByName(name) {
+  const normalized = normalizeText(name);
+  return cashState.clients.find((client) => normalizeText(client.client_name) === normalized) || null;
+}
+
 function currentPayload() {
   return {
     customer_name: cashElements.customerName.value.trim(),
-    plate: cashElements.plate.value.trim(),
+    plate: cashElements.plate.value.trim().toUpperCase(),
     service_name: cashElements.serviceName.value.trim(),
     amount: Number(cashElements.amount.value || 0),
     payment_method: cashElements.paymentMethod.value.trim(),
@@ -87,6 +134,18 @@ function partnerPaymentPayload() {
   };
 }
 
+function currentClientRegistrationPayload() {
+  return {
+    client_name: cashElements.clientRegistrationName.value.trim(),
+    price_transferencia: Number(cashElements.clientPriceTransferencia.value || 0),
+    price_caminhao_transferencia: Number(cashElements.clientPriceCaminhaoTransferencia.value || 0),
+    price_combo_transferencia: Number(cashElements.clientPriceComboTransferencia.value || 0),
+    price_cautelar: Number(cashElements.clientPriceCautelar.value || 0),
+    price_pesquisa: Number(cashElements.clientPricePesquisa.value || 0),
+    price_diversos: Number(cashElements.clientPriceDiversos.value || 0),
+  };
+}
+
 function syncDateInput() {
   if (cashElements.dateInput) cashElements.dateInput.value = cashState.activeDate;
 }
@@ -101,22 +160,80 @@ function renderClientSuggestions(clients) {
   });
 }
 
+function applyClientCatalog(clients, items) {
+  cashState.clientNames = clients || [];
+  cashState.clients = items || [];
+  renderClientSuggestions(cashState.clientNames);
+}
+
 async function loadClientSuggestions() {
-  if (!cashElements.clientSuggestions) return;
+  if (!cashElements.clientSuggestions && !cashElements.clientRegistrationForm) return;
   const response = await fetch("/api/clients");
   const data = await response.json();
   if (!response.ok) {
     alert(data.error || "Nao foi possivel carregar os clientes cadastrados.");
     return;
   }
-  renderClientSuggestions(data.clients || []);
+  applyClientCatalog(data.clients || [], data.items || []);
+}
+
+function setFieldEnabled(field, enabled) {
+  if (!field) return;
+  field.disabled = !enabled;
+}
+
+function updatePlateState() {
+  if (!cashElements.plate || !cashElements.plateHelp) return false;
+  const hasValue = Boolean(cashElements.plate.value.trim());
+  const valid = isValidPlate(cashElements.plate.value);
+  cashElements.plateHelp.textContent = !hasValue
+    ? "Use o formato XXX-XXXX."
+    : valid
+      ? "Placa valida."
+      : "Formato invalido. Use 3 caracteres, hifen e 4 caracteres.";
+  cashElements.plateHelp.classList.toggle("field-help-error", hasValue && !valid);
+  cashElements.plateHelp.classList.toggle("field-help-success", hasValue && valid);
+  return valid;
+}
+
+function updateAutoAmount() {
+  if (!cashPageMode.hasEntryForm) return;
+  const client = findClientByName(cashElements.customerName.value);
+  const service = cashElements.serviceName.value;
+  if (!client || !service) {
+    cashElements.amount.value = "";
+    return;
+  }
+  const fieldName = servicePriceFieldMap[service];
+  cashElements.amount.value = fieldName ? Number(client[fieldName] || 0).toFixed(2) : "0.00";
+}
+
+function updateGuidedFlow() {
+  if (!cashPageMode.hasEntryForm) return;
+  const hasDate = Boolean(cashElements.dateInput?.value);
+  const client = findClientByName(cashElements.customerName.value);
+  const hasClient = Boolean(client);
+  const plateValid = updatePlateState();
+  const hasService = Boolean(cashElements.serviceName.value);
+  const hasAmount = Number(cashElements.amount.value || 0) >= 0 && cashElements.amount.value !== "";
+  const hasPayment = Boolean(cashElements.paymentMethod.value);
+  const hasType = Boolean(cashElements.flowType.value);
+
+  setFieldEnabled(cashElements.customerName, hasDate);
+  setFieldEnabled(cashElements.plate, hasDate && hasClient);
+  setFieldEnabled(cashElements.serviceName, hasDate && hasClient && plateValid);
+  setFieldEnabled(cashElements.amount, hasDate && hasClient && plateValid && hasService);
+  setFieldEnabled(cashElements.paymentMethod, hasDate && hasClient && plateValid && hasService && hasAmount);
+  setFieldEnabled(cashElements.flowType, hasDate && hasClient && plateValid && hasService && hasAmount && hasPayment);
+  setFieldEnabled(cashElements.saveButton, hasDate && hasClient && plateValid && hasService && hasAmount && hasPayment && hasType);
 }
 
 function resetCashForm() {
   if (!cashElements.form) return;
   cashElements.form.reset();
   cashElements.entryId.value = "";
-  cashElements.flowType.value = "entrada";
+  cashElements.amount.value = "";
+  updateGuidedFlow();
 }
 
 function resetPartnerPaymentForm() {
@@ -124,7 +241,39 @@ function resetPartnerPaymentForm() {
   cashElements.partnerPaymentForm.reset();
 }
 
+function resetClientRegistrationForm() {
+  if (!cashElements.clientRegistrationForm) return;
+  cashElements.clientRegistrationForm.reset();
+  if (cashElements.clientRegistrationId) cashElements.clientRegistrationId.value = "";
+  if (cashElements.clientRegistrationSubmit) cashElements.clientRegistrationSubmit.textContent = "Cadastrar cliente";
+}
+
+function clearClientRegistrationPrices() {
+  cashElements.clientRegistrationId.value = "";
+  cashElements.clientPriceTransferencia.value = 0;
+  cashElements.clientPriceCaminhaoTransferencia.value = 0;
+  cashElements.clientPriceComboTransferencia.value = 0;
+  cashElements.clientPriceCautelar.value = 0;
+  cashElements.clientPricePesquisa.value = 0;
+  cashElements.clientPriceDiversos.value = 0;
+  if (cashElements.clientRegistrationSubmit) cashElements.clientRegistrationSubmit.textContent = "Cadastrar cliente";
+}
+
+function fillClientRegistrationForm(client) {
+  if (!cashElements.clientRegistrationForm || !client) return;
+  cashElements.clientRegistrationId.value = client.id;
+  cashElements.clientRegistrationName.value = client.client_name;
+  cashElements.clientPriceTransferencia.value = Number(client.price_transferencia || 0);
+  cashElements.clientPriceCaminhaoTransferencia.value = Number(client.price_caminhao_transferencia || 0);
+  cashElements.clientPriceComboTransferencia.value = Number(client.price_combo_transferencia || 0);
+  cashElements.clientPriceCautelar.value = Number(client.price_cautelar || 0);
+  cashElements.clientPricePesquisa.value = Number(client.price_pesquisa || 0);
+  cashElements.clientPriceDiversos.value = Number(client.price_diversos || 0);
+  if (cashElements.clientRegistrationSubmit) cashElements.clientRegistrationSubmit.textContent = "Atualizar cliente";
+}
+
 function setSelectValue(select, value) {
+  if (!select) return;
   const rawValue = String(value || "");
   const option = Array.from(select.options).find((item) => item.value.toLowerCase() === rawValue.toLowerCase());
   if (option) {
@@ -164,25 +313,21 @@ function renderDeletedCashDay() {
   renderSummary({
     display_date: cashState.activeDate.split("-").reverse().join("/"),
     result: 0,
-    payment_totals: {
-      dinheiro: 0,
-      cartao_debito: 0,
-      cartao_credito: 0,
-      pix: 0,
-      outras: 0,
-    },
+    payment_totals: { dinheiro: 0, cartao_debito: 0, cartao_credito: 0, pix: 0, outras: 0 },
     vault_balance: 0,
     total_in: 0,
     total_out: 0,
     total_deposit: 0,
     total_partner_payment: 0,
   });
-  if (cashElements.title) cashElements.title.textContent = "Caixa excluido";
-  if (cashElements.status) cashElements.status.textContent = "Excluido";
-  cashElements.body.innerHTML = '<tr><td colspan="7" class="empty-state">Caixa excluido. Escolha uma data no arquivo ou abra um novo caixa.</td></tr>';
+  if (cashElements.body) {
+    cashElements.body.innerHTML =
+      '<tr><td colspan="7" class="empty-state">Caixa excluido. Escolha uma data no arquivo ou abra um novo caixa.</td></tr>';
+  }
 }
 
 function renderEntries() {
+  if (!cashElements.body) return;
   if (!cashState.entries.length) {
     cashElements.body.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum lancamento neste dia.</td></tr>';
     return;
@@ -207,7 +352,7 @@ function renderEntries() {
     deleteButton.className = "icon-button danger-button";
     deleteButton.textContent = "Excluir";
     deleteButton.addEventListener("click", () => deleteEntry(entry.id));
-    if (cashPageMode.hasEntryForm) {
+    if (cashPageMode.hasEntryForm && entry.flow_type !== "pagamento_parceiros") {
       const editButton = document.createElement("button");
       editButton.type = "button";
       editButton.className = "icon-button";
@@ -272,11 +417,15 @@ function editEntry(entry) {
   if (!cashPageMode.hasEntryForm) return;
   cashElements.entryId.value = entry.id;
   cashElements.customerName.value = entry.customer_name;
-  cashElements.plate.value = entry.plate || "";
+  cashElements.plate.value = normalizePlate(entry.plate || "");
   setSelectValue(cashElements.serviceName, entry.service_name);
-  cashElements.amount.value = entry.amount;
   setSelectValue(cashElements.paymentMethod, entry.payment_method);
-  cashElements.flowType.value = entry.flow_type;
+  setSelectValue(cashElements.flowType, entry.flow_type);
+  updateAutoAmount();
+  if (!cashElements.amount.value) {
+    cashElements.amount.value = Number(entry.amount || 0).toFixed(2);
+  }
+  updateGuidedFlow();
   cashElements.customerName.focus();
 }
 
@@ -303,12 +452,18 @@ async function loadDay() {
   if (cashElements.status) cashElements.status.textContent = data.day.finalized ? "Finalizado" : "Aberto";
   renderSummary(data.summary);
   renderEntries();
+  updateGuidedFlow();
   await loadTree();
 }
 
 async function saveEntry(event) {
   if (!cashPageMode.hasEntryForm) return;
   event.preventDefault();
+  if (!isValidPlate(cashElements.plate.value)) {
+    updateGuidedFlow();
+    alert("A placa precisa seguir o formato XXX-XXXX.");
+    return;
+  }
   const entryId = cashElements.entryId.value;
   const response = await fetch(entryId ? `/api/cash-flow/entries/${entryId}` : `/api/cash-flow/day/${cashState.activeDate}/entries`, {
     method: entryId ? "PUT" : "POST",
@@ -342,19 +497,23 @@ async function savePartnerPayment(event) {
 }
 
 async function saveClientRegistration(event) {
+  if (!cashPageMode.hasClientRegistration) return;
   event.preventDefault();
-  const response = await fetch("/api/clients", {
-    method: "POST",
+  const clientId = cashElements.clientRegistrationId.value;
+  const payload = currentClientRegistrationPayload();
+  const response = await fetch(clientId ? `/api/clients/${clientId}` : "/api/clients", {
+    method: clientId ? "PUT" : "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ client_name: cashElements.clientRegistrationName.value.trim() }),
+    body: JSON.stringify(payload),
   });
   const data = await response.json();
   if (!response.ok) {
-    alert(data.error || "Nao foi possivel cadastrar o cliente.");
+    alert(data.error || "Nao foi possivel salvar o cliente.");
     return;
   }
-  cashElements.clientRegistrationForm.reset();
-  renderClientSuggestions(data.clients || []);
+  applyClientCatalog(data.clients || [], data.items || []);
+  resetClientRegistrationForm();
+  updateGuidedFlow();
 }
 
 async function deleteEntry(entryId) {
@@ -370,7 +529,6 @@ async function deleteEntry(entryId) {
 
 async function deleteCashDay() {
   if (!window.confirm("Tem certeza que deseja excluir este caixa?")) return;
-
   const response = await fetch(`/api/cash-flow/day/${cashState.activeDate}`, { method: "DELETE" });
   const data = await response.json();
   if (!response.ok) {
@@ -399,6 +557,35 @@ async function setFinalized(finalized) {
   await loadTree();
 }
 
+function handleClientRegistrationLookup() {
+  const client = findClientByName(cashElements.clientRegistrationName?.value);
+  if (client) fillClientRegistrationForm(client);
+  else clearClientRegistrationPrices();
+  if (cashElements.clientRegistrationName) cashElements.clientRegistrationName.value = cashElements.clientRegistrationName.value.trim();
+}
+
+function setupGuidedFormEvents() {
+  if (!cashPageMode.hasEntryForm) return;
+  cashElements.customerName.addEventListener("change", () => {
+    updateAutoAmount();
+    updateGuidedFlow();
+  });
+  cashElements.customerName.addEventListener("blur", () => {
+    updateAutoAmount();
+    updateGuidedFlow();
+  });
+  cashElements.plate.addEventListener("input", () => {
+    cashElements.plate.value = normalizePlate(cashElements.plate.value);
+    updateGuidedFlow();
+  });
+  cashElements.serviceName.addEventListener("change", () => {
+    updateAutoAmount();
+    updateGuidedFlow();
+  });
+  cashElements.paymentMethod.addEventListener("change", updateGuidedFlow);
+  cashElements.flowType.addEventListener("change", updateGuidedFlow);
+}
+
 function setupEvents() {
   cashElements.openButton?.addEventListener("click", async () => {
     cashState.activeDate = cashElements.dateInput.value || cashState.activeDate;
@@ -406,11 +593,15 @@ function setupEvents() {
   });
   cashElements.dateInput?.addEventListener("change", async () => {
     cashState.activeDate = cashElements.dateInput.value || cashState.activeDate;
+    updateGuidedFlow();
     await loadDay();
   });
   cashElements.form?.addEventListener("submit", saveEntry);
   cashElements.partnerPaymentForm?.addEventListener("submit", savePartnerPayment);
   cashElements.clientRegistrationForm?.addEventListener("submit", saveClientRegistration);
+  cashElements.clientRegistrationName?.addEventListener("change", handleClientRegistrationLookup);
+  cashElements.clientRegistrationName?.addEventListener("blur", handleClientRegistrationLookup);
+  cashElements.clientRegistrationClear?.addEventListener("click", resetClientRegistrationForm);
   cashElements.clearButton?.addEventListener("click", resetCashForm);
   cashElements.exportPdfButton?.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");
@@ -421,11 +612,13 @@ function setupEvents() {
   cashElements.finalizeButton?.addEventListener("click", () => setFinalized(true));
   cashElements.reopenButton?.addEventListener("click", () => setFinalized(false));
   cashElements.deleteDayButton?.addEventListener("click", deleteCashDay);
+  setupGuidedFormEvents();
 }
 
 if (cashElements.dateInput && cashElements.body) {
   syncDateInput();
   setupEvents();
-  loadClientSuggestions();
+  loadClientSuggestions().then(() => updateGuidedFlow());
+  updateGuidedFlow();
   loadDay();
 }
