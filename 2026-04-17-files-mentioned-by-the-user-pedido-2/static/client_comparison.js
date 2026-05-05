@@ -3,6 +3,7 @@ const clientComparisonState = {
   ranking: [],
   barChart: null,
   quantityBarChart: null,
+  initialized: false,
 };
 
 function formatCurrency(value) {
@@ -161,7 +162,9 @@ async function loadClientComparison() {
   renderCharts(data);
 }
 
-if (document.querySelector("#client-ranking-body")) {
+async function initClientComparisonSection() {
+  if (!document.querySelector("#client-ranking-body") || clientComparisonState.initialized) return;
+  clientComparisonState.initialized = true;
   document.querySelector("#client-view-mode")?.addEventListener("change", (event) => {
     const select = document.querySelector("#client-month-select");
     if (select) select.disabled = event.target.value !== "month";
@@ -169,10 +172,14 @@ if (document.querySelector("#client-ranking-body")) {
 
   document.querySelector("#apply-client-filter-button")?.addEventListener("click", loadClientComparison);
 
-  (async function init() {
-    const comparison = await fetch("/api/comparison");
-    const data = await comparison.json();
-    if (comparison.ok) populateMonthSelect(data.months || []);
-    await loadClientComparison();
-  })();
+  const comparison = await fetch("/api/comparison");
+  const data = await comparison.json();
+  if (comparison.ok) populateMonthSelect(data.months || []);
+  await loadClientComparison();
+}
+
+window.initClientComparisonSection = initClientComparisonSection;
+
+if (document.querySelector("#client-ranking-body") && document.body.dataset.page !== "monthly-report") {
+  initClientComparisonSection();
 }

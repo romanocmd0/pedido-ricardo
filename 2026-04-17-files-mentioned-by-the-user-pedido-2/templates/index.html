@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
-  <body>
+  <body data-page="monthly-report">
     <main class="layout">
       <nav class="top-nav">
         <a class="nav-button" href="/service-order">Ordem de Servico</a>
@@ -140,25 +140,29 @@
         </div>
       </section>
 
-      <section class="panel report-section">
-        <div class="section-header">
-          <div>
-            <p class="section-tag">Comparacao de meses</p>
-            <h2>Visao consolidada</h2>
-          </div>
-          <div class="hero-card compact-hero-card">
+      <section class="panel report-section accordion-section" data-accordion-section="comparison">
+        <button class="accordion-toggle" type="button" data-accordion-toggle>
+          <span>Comparacao de meses</span>
+        </button>
+        <div class="accordion-content" data-accordion-content>
+          <div class="section-header">
             <div>
-              <span class="hero-label">Meses com dados</span>
-              <strong id="comparison-month-count">0</strong>
+              <p class="section-tag">Comparacao de meses</p>
+              <h2>Visao consolidada</h2>
             </div>
-            <div>
-              <span class="hero-label">Mes selecionado</span>
-              <strong id="selected-month-title">Nenhum</strong>
+            <div class="hero-card compact-hero-card">
+              <div>
+                <span class="hero-label">Meses com dados</span>
+                <strong id="comparison-month-count">0</strong>
+              </div>
+              <div>
+                <span class="hero-label">Mes selecionado</span>
+                <strong id="selected-month-title">Nenhum</strong>
+              </div>
             </div>
           </div>
-        </div>
 
-        <section class="panel tabs-panel inner-panel">
+          <section class="panel tabs-panel inner-panel">
           <div class="tabs-header">
             <div>
               <p class="section-tag">Dashboard inteligente</p>
@@ -264,30 +268,35 @@
                 <th>Pesquisa</th>
               </tr>
             </thead>
-            <tbody id="comparison-body">
+          <tbody id="comparison-body">
               <tr>
                 <td colspan="5" class="empty-state">Carregando comparacao...</td>
               </tr>
             </tbody>
           </table>
         </div>
+        </div>
       </section>
 
-      <section class="panel report-section">
-        <div class="section-header">
-          <div>
-            <p class="section-tag">Comparacao entre clientes</p>
-            <h2>Ranking e desempenho</h2>
-          </div>
-          <div class="hero-card compact-hero-card">
+      <section class="panel report-section accordion-section" data-accordion-section="clients">
+        <button class="accordion-toggle" type="button" data-accordion-toggle>
+          <span>Comparacao entre clientes</span>
+        </button>
+        <div class="accordion-content" data-accordion-content>
+          <div class="section-header">
             <div>
-              <span class="hero-label">Escopo</span>
-              <strong id="client-scope-label">Total geral</strong>
+              <p class="section-tag">Comparacao entre clientes</p>
+              <h2>Ranking e desempenho</h2>
+            </div>
+            <div class="hero-card compact-hero-card">
+              <div>
+                <span class="hero-label">Escopo</span>
+                <strong id="client-scope-label">Total geral</strong>
+              </div>
             </div>
           </div>
-        </div>
 
-        <section class="panel comparison-tools-panel inner-panel">
+          <section class="panel comparison-tools-panel inner-panel">
           <div class="filters comparison-filters">
             <label class="field compact">
               <span>Modo</span>
@@ -344,27 +353,32 @@
             </tbody>
           </table>
         </div>
+        </div>
       </section>
 
-      <section class="panel report-section">
-        <div class="section-header">
-          <div>
-            <p class="section-tag">Requisicoes parceiros</p>
-            <h2>Cobranca mensal organizada</h2>
-          </div>
-          <div class="hero-card compact-hero-card">
+      <section class="panel report-section accordion-section" data-accordion-section="requests">
+        <button class="accordion-toggle" type="button" data-accordion-toggle>
+          <span>Requisicoes parceiros</span>
+        </button>
+        <div class="accordion-content" data-accordion-content>
+          <div class="section-header">
             <div>
-              <span class="hero-label">Parceiros</span>
-              <strong id="requests-partner-count">0</strong>
+              <p class="section-tag">Requisicoes parceiros</p>
+              <h2>Cobranca mensal organizada</h2>
             </div>
-            <div>
-              <span class="hero-label">Total selecionado</span>
-              <strong id="requests-selected-total">R$ 0,00</strong>
+            <div class="hero-card compact-hero-card">
+              <div>
+                <span class="hero-label">Parceiros</span>
+                <strong id="requests-partner-count">0</strong>
+              </div>
+              <div>
+                <span class="hero-label">Total selecionado</span>
+                <strong id="requests-selected-total">R$ 0,00</strong>
+              </div>
             </div>
           </div>
-        </div>
 
-        <section class="requests-layout embedded-requests-layout">
+          <section class="requests-layout embedded-requests-layout">
           <aside class="panel requests-partners-panel inner-panel">
             <div class="section-header">
               <div>
@@ -432,6 +446,7 @@
             </div>
           </section>
         </section>
+        </div>
       </section>
     </main>
 
@@ -439,5 +454,6 @@
     <script src="{{ url_for('static', filename='comparison.js') }}" defer></script>
     <script src="{{ url_for('static', filename='client_comparison.js') }}" defer></script>
     <script src="{{ url_for('static', filename='partner_requests.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='monthly_sections.js') }}" defer></script>
   </body>
 </html>

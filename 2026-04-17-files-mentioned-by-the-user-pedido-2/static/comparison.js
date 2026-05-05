@@ -9,6 +9,7 @@ const comparisonState = {
   groupedQuantityChart: null,
   monthValuesCompareChart: null,
   monthQuantityCompareChart: null,
+  initialized: false,
 };
 
 function formatCurrency(value) {
@@ -348,7 +349,15 @@ async function loadComparison() {
   }
 }
 
-if (comparisonRoot) {
+async function initComparisonSection() {
+  if (!comparisonRoot || comparisonState.initialized) return;
+  comparisonState.initialized = true;
   document.querySelector("#compare-months-button")?.addEventListener("click", compareSelectedMonths);
-  loadComparison();
+  await loadComparison();
+}
+
+window.initComparisonSection = initComparisonSection;
+
+if (comparisonRoot && document.body.dataset.page !== "monthly-report") {
+  initComparisonSection();
 }

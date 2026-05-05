@@ -114,6 +114,46 @@ a { color: inherit; text-decoration: none; }
   padding: 22px;
   margin-bottom: 20px;
 }
+.accordion-section {
+  overflow: hidden;
+}
+.accordion-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border: 1px solid rgba(212,175,55,0.2);
+  border-radius: 18px;
+  background: rgba(212,175,55,0.08);
+  color: var(--accent-strong);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.accordion-toggle::after {
+  content: "+";
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.accordion-section.is-open .accordion-toggle::after {
+  content: "-";
+}
+.accordion-section.is-open .accordion-toggle {
+  border-color: var(--accent);
+  background: rgba(212,175,55,0.14);
+}
+.accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.35s ease, opacity 0.25s ease, margin-top 0.25s ease;
+}
+.accordion-section.is-open .accordion-content {
+  max-height: 5000px;
+  opacity: 1;
+  margin-top: 18px;
+}
 .tabs-header, .section-header, .compact-header {
   display: flex; justify-content: space-between; gap: 16px; align-items: start; margin-bottom: 18px;
 }
@@ -372,6 +412,13 @@ a { color: inherit; text-decoration: none; }
   background:
     linear-gradient(135deg, rgba(212,175,55,0.16), rgba(255,255,255,0.03)),
     rgba(14,42,71,0.78);
+  margin-bottom: 20px;
+}
+.client-registration-section {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.03);
   margin-bottom: 20px;
 }
 .partner-payment-section .section-header {

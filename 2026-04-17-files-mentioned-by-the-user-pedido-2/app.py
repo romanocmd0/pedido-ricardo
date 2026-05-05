@@ -139,6 +139,10 @@ def safe_filename_part(value: str) -> str:
     return safe.strip("-") or "parceiro"
 
 
+def normalize_client_name(value: str | None) -> str:
+    return " ".join((value or "").strip().split())
+
+
 def emv_field(field_id: str, value: str) -> str:
     return f"{field_id}{len(value):02d}{value}"
 
@@ -862,13 +866,56 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
 def get_all_clients(connection: sqlite3.Connection) -> list[str]:
     rows = connection.execute(
         """
-        SELECT DISTINCT partner_name
+        SELECT partner_name AS client_name
         FROM records
         WHERE TRIM(partner_name) <> ''
-        ORDER BY partner_name
+        UNION
+        SELECT customer_name AS client_name
+        FROM cash_entries
+        WHERE TRIM(customer_name) <> ''
+        UNION
+        SELECT client_name
+        FROM clients
+        WHERE TRIM(client_name) <> ''
+        ORDER BY client_name
         """
     ).fetchall()
-    return [row["partner_name"] for row in rows]
+    return [row["client_name"] for row in rows]
+
+
+def register_client(connection: sqlite3.Connection, client_name: str) -> str:
+    normalized_name = normalize_client_name(client_name)
+    if not normalized_name:
+        raise ValueError("O nome do cliente e obrigatorio.")
+
+    rows = get_all_clients(connection)
+    if any(normalize_text(item) == normalize_text(normalized_name) for item in rows):
+        raise ValueError("Esse cliente ja esta cadastrado.")
+
+    connection.execute(
+        """
+        INSERT INTO clients (client_name, created_at, updated_at)
+        VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        (normalized_name,),
+    )
+    return normalized_name
+
+
+def upsert_client_from_system(connection: sqlite3.Connection, client_name: str) -> None:
+    normalized_name = normalize_client_name(client_name)
+    if not normalized_name:
+        return
+    existing = get_all_clients(connection)
+    if any(normalize_text(item) == normalize_text(normalized_name) for item in existing):
+        return
+    connection.execute(
+        """
+        INSERT INTO clients (client_name, created_at, updated_at)
+        VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        (normalized_name,),
+    )
 
 
 def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict[str, Any]:
@@ -2028,6 +2075,13 @@ def init_db() -> None:
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS months (
                 month_key TEXT PRIMARY KEY,
                 year_number INTEGER NOT NULL,
@@ -2119,6 +2173,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_records_partner ON records (partner_name);
             CREATE INDEX IF NOT EXISTS idx_records_month ON records (month_key);
             CREATE INDEX IF NOT EXISTS idx_months_sort ON months (year_number, month_number);
+            CREATE INDEX IF NOT EXISTS idx_clients_name ON clients (client_name);
             CREATE INDEX IF NOT EXISTS idx_cash_entries_date ON cash_entries (cash_date);
             CREATE INDEX IF NOT EXISTS idx_cash_entries_customer ON cash_entries (customer_name);
             CREATE INDEX IF NOT EXISTS idx_cash_days_sort ON cash_days (year_number, month_number, day_number);
@@ -2393,6 +2448,25 @@ def client_comparison():
     return jsonify({"months": months, **payload})
 
 
+@app.get("/api/clients")
+def list_clients():
+    with get_db() as connection:
+        clients = get_all_clients(connection)
+    return jsonify({"clients": clients})
+
+
+@app.post("/api/clients")
+def create_client():
+    client_name = (request.get_json(silent=True) or {}).get("client_name", "")
+    try:
+        with get_db() as connection:
+            saved_name = register_client(connection, client_name)
+            clients = get_all_clients(connection)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"message": "Cliente cadastrado com sucesso.", "client_name": saved_name, "clients": clients}), 201
+
+
 @app.get("/api/partner-requests")
 def partner_requests():
     with get_db() as connection:
@@ -2527,6 +2601,7 @@ def create_cash_entry(cash_date: str):
 
     with get_db() as connection:
         ensure_cash_day(connection, cash_date)
+        upsert_client_from_system(connection, entry["customer_name"])
         cursor = connection.execute(
             """
             INSERT INTO cash_entries (
@@ -2574,6 +2649,7 @@ def update_cash_entry(entry_id: int):
             return jsonify({"error": "Lancamento nao encontrado."}), 404
         if existing["synced_to_monthly"]:
             sync_cash_entry_to_monthly(connection, existing, -1)
+        upsert_client_from_system(connection, entry["customer_name"])
         connection.execute(
             """
             UPDATE cash_entries
@@ -2780,6 +2856,7 @@ def create_record():
 
     with get_db() as connection:
         ensure_month(connection, record["year_number"], record["month_number"])
+        upsert_client_from_system(connection, record["partner_name"])
         cursor = connection.execute(
             """
             INSERT INTO records (
@@ -2838,6 +2915,7 @@ def update_record(record_id: int):
             return jsonify({"error": "Registro nao encontrado."}), 404
 
         ensure_month(connection, record["year_number"], record["month_number"])
+        upsert_client_from_system(connection, record["partner_name"])
         connection.execute(
             """
             UPDATE records

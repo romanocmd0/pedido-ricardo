@@ -3,6 +3,7 @@ const requestState = {
   selectedPartner: "",
   selectedYear: null,
   selectedMonth: null,
+  initialized: false,
 };
 
 const requestElements = {
@@ -255,5 +256,15 @@ function setupEvents() {
   });
 }
 
-setupEvents();
-loadPartners();
+async function initPartnerRequestsSection() {
+  if (!requestElements.partnerList || requestState.initialized) return;
+  requestState.initialized = true;
+  setupEvents();
+  await loadPartners();
+}
+
+window.initPartnerRequestsSection = initPartnerRequestsSection;
+
+if (requestElements.partnerList && document.body.dataset.page !== "monthly-report") {
+  initPartnerRequestsSection();
+}

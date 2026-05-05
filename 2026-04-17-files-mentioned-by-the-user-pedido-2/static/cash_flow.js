@@ -26,6 +26,9 @@ const cashElements = {
   partnerPaymentName: document.querySelector("#partner-payment-name"),
   partnerPaymentDescription: document.querySelector("#partner-payment-description"),
   partnerPaymentAmount: document.querySelector("#partner-payment-amount"),
+  clientRegistrationForm: document.querySelector("#client-registration-form"),
+  clientRegistrationName: document.querySelector("#client-registration-name"),
+  clientSuggestions: document.querySelector("#client-name-suggestions"),
   paymentMethod: document.querySelector("#cash-payment-method"),
   flowType: document.querySelector("#cash-flow-type"),
   clearButton: document.querySelector("#clear-cash-form-button"),
@@ -86,6 +89,27 @@ function partnerPaymentPayload() {
 
 function syncDateInput() {
   if (cashElements.dateInput) cashElements.dateInput.value = cashState.activeDate;
+}
+
+function renderClientSuggestions(clients) {
+  if (!cashElements.clientSuggestions) return;
+  cashElements.clientSuggestions.innerHTML = "";
+  (clients || []).forEach((client) => {
+    const option = document.createElement("option");
+    option.value = client;
+    cashElements.clientSuggestions.appendChild(option);
+  });
+}
+
+async function loadClientSuggestions() {
+  if (!cashElements.clientSuggestions) return;
+  const response = await fetch("/api/clients");
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel carregar os clientes cadastrados.");
+    return;
+  }
+  renderClientSuggestions(data.clients || []);
 }
 
 function resetCashForm() {
@@ -317,6 +341,22 @@ async function savePartnerPayment(event) {
   await loadDay();
 }
 
+async function saveClientRegistration(event) {
+  event.preventDefault();
+  const response = await fetch("/api/clients", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ client_name: cashElements.clientRegistrationName.value.trim() }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.error || "Nao foi possivel cadastrar o cliente.");
+    return;
+  }
+  cashElements.clientRegistrationForm.reset();
+  renderClientSuggestions(data.clients || []);
+}
+
 async function deleteEntry(entryId) {
   if (!window.confirm("Deseja excluir este lancamento?")) return;
   const response = await fetch(`/api/cash-flow/entries/${entryId}`, { method: "DELETE" });
@@ -370,6 +410,7 @@ function setupEvents() {
   });
   cashElements.form?.addEventListener("submit", saveEntry);
   cashElements.partnerPaymentForm?.addEventListener("submit", savePartnerPayment);
+  cashElements.clientRegistrationForm?.addEventListener("submit", saveClientRegistration);
   cashElements.clearButton?.addEventListener("click", resetCashForm);
   cashElements.exportPdfButton?.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");
@@ -385,5 +426,6 @@ function setupEvents() {
 if (cashElements.dateInput && cashElements.body) {
   syncDateInput();
   setupEvents();
+  loadClientSuggestions();
   loadDay();
 }
