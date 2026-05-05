@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Relatorio Mensal</title>
+    <title>Relatorios</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
@@ -11,13 +11,13 @@
     <main class="layout">
       <nav class="top-nav">
         <a class="nav-button" href="/service-order">Ordem de Servico</a>
-        <a class="nav-button is-active" href="/">Relatorio Mensal</a>
-        <a class="nav-button" href="/cash-flow">Fluxo de Caixa</a>
+        <a class="nav-button is-active" href="/">Relatorios</a>
+        <a class="nav-button" href="/cash-flow">Financeiro</a>
       </nav>
 
       <section class="hero">
         <div>
-          <p class="eyebrow">Relatorio Mensal</p>
+          <p class="eyebrow">Relatorios</p>
           <h1 id="active-month-title">-</h1>
         </div>
         <div class="hero-card">
@@ -102,47 +102,52 @@
         </div>
       </section>
 
-      <section class="panel report-section">
-        <div class="section-header">
-          <div>
-            <p class="section-tag">Relatorio mensal principal</p>
-            <h2>Tabela de registros</h2>
+      <section class="panel report-section accordion-section" data-accordion-section="monthly-report">
+        <button class="accordion-toggle" type="button" data-accordion-toggle>
+          <span>Relatorio Mensal</span>
+        </button>
+        <div class="accordion-content" data-accordion-content>
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Relatorio mensal principal</p>
+              <h2>Tabela de registros</h2>
+            </div>
           </div>
-        </div>
 
-        <div class="inline-hint">Clique em uma linha para editar inline. A linha salva ao sair do campo ou pressionar Enter.</div>
+          <div class="inline-hint">Clique em uma linha para editar inline. A linha salva ao sair do campo ou pressionar Enter.</div>
 
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th data-sort="partner_name">Parceiro</th>
-                <th data-sort="transferencia_qty">Transfer.</th>
-                <th data-sort="caminhao_transferencia_qty">Transf. Caminhao</th>
-                <th data-sort="combo_transferencia_qty">Transf. Combo</th>
-                <th data-sort="cautelar_qty">Cautelar</th>
-                <th data-sort="pesquisa_qty">Pesquisa</th>
-                <th data-sort="unit_transferencia">Vlr. Transfer.</th>
-                <th data-sort="unit_caminhao_transferencia">Vlr. Caminhao</th>
-                <th data-sort="unit_combo_transferencia">Vlr. Combo</th>
-                <th data-sort="unit_cautelar">Vlr. Cautelar</th>
-                <th data-sort="unit_pesquisa">Vlr. Pesquisa</th>
-                <th data-sort="total_value">Total</th>
-                <th>Acoes</th>
-              </tr>
-            </thead>
-            <tbody id="records-body">
-              <tr>
-                <td colspan="13" class="empty-state">Carregando registros...</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="partner_name">Parceiro</th>
+                  <th data-sort="transferencia_qty">Transfer.</th>
+                  <th data-sort="caminhao_transferencia_qty">Transf. Caminhao</th>
+                  <th data-sort="combo_transferencia_qty">Transf. Combo</th>
+                  <th data-sort="cautelar_qty">Cautelar</th>
+                  <th data-sort="pesquisa_qty">Pesquisa</th>
+                  <th data-sort="unit_transferencia">Vlr. Transfer.</th>
+                  <th data-sort="unit_caminhao_transferencia">Vlr. Caminhao</th>
+                  <th data-sort="unit_combo_transferencia">Vlr. Combo</th>
+                  <th data-sort="unit_cautelar">Vlr. Cautelar</th>
+                  <th data-sort="unit_pesquisa">Vlr. Pesquisa</th>
+                  <th data-sort="total_value">Total</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="records-body">
+                <tr>
+                  <td colspan="13" class="empty-state">Carregando registros...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
       <section class="panel report-section accordion-section" data-accordion-section="comparison">
         <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Comparacao de meses</span>
+          <span>Comparacao de Meses</span>
         </button>
         <div class="accordion-content" data-accordion-content>
           <div class="section-header">
@@ -280,7 +285,7 @@
 
       <section class="panel report-section accordion-section" data-accordion-section="clients">
         <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Comparacao entre clientes</span>
+          <span>Comparacao entre Clientes</span>
         </button>
         <div class="accordion-content" data-accordion-content>
           <div class="section-header">
@@ -358,7 +363,7 @@
 
       <section class="panel report-section accordion-section" data-accordion-section="requests">
         <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Requisicoes parceiros</span>
+          <span>Requisicoes Parceiros</span>
         </button>
         <div class="accordion-content" data-accordion-content>
           <div class="section-header">
