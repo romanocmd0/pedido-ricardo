@@ -140,7 +140,17 @@ def safe_filename_part(value: str) -> str:
 
 
 def normalize_client_name(value: str | None) -> str:
-    return " ".join((value or "").strip().split())
+    if value is None:
+        return ""
+    cleaned_characters: list[str] = []
+    for character in str(value):
+        if unicodedata.category(character) in {"Cf", "Cc"}:
+            continue
+        if character in {"\u00A0", "\u2007", "\u202F"}:
+            cleaned_characters.append(" ")
+        else:
+            cleaned_characters.append(character)
+    return " ".join("".join(cleaned_characters).strip().split())
 
 
 CLIENT_PRICE_FIELDS = {
@@ -908,22 +918,7 @@ def get_external_client_names(connection: sqlite3.Connection) -> list[str]:
 
 
 def get_all_clients(connection: sqlite3.Connection) -> list[str]:
-    rows = connection.execute(
-        """
-        SELECT partner_name AS client_name
-        FROM records
-        WHERE TRIM(partner_name) <> ''
-        UNION
-        SELECT customer_name AS client_name
-        FROM cash_entries
-        WHERE TRIM(customer_name) <> ''
-        UNION
-        SELECT client_name
-        FROM clients
-        WHERE TRIM(client_name) <> ''
-        ORDER BY client_name
-        """
-    ).fetchall()
+    rows = connection.execute("SELECT client_name FROM clients WHERE TRIM(client_name) <> '' ORDER BY client_name").fetchall()
     return [row["client_name"] for row in rows]
 
 
@@ -935,6 +930,89 @@ def sync_clients_catalog(connection: sqlite3.Connection) -> None:
             continue
         upsert_client_from_system(connection, client_name)
         current_names.add(normalize_text(client_name))
+
+
+def cleanup_clients_catalog(connection: sqlite3.Connection) -> dict[str, int]:
+    rows = connection.execute(
+        """
+        SELECT
+            id,
+            client_name,
+            price_transferencia,
+            price_caminhao_transferencia,
+            price_combo_transferencia,
+            price_cautelar,
+            price_pesquisa,
+            price_diversos
+        FROM clients
+        ORDER BY id
+        """
+    ).fetchall()
+
+    removed = 0
+    updated = 0
+    merged = 0
+    normalized_map: dict[str, sqlite3.Row] = {}
+
+    for row in rows:
+        normalized_name = normalize_client_name(row["client_name"])
+        if not normalized_name:
+            connection.execute("DELETE FROM clients WHERE id = ?", (row["id"],))
+            removed += 1
+            continue
+
+        normalized_key = normalize_text(normalized_name)
+        survivor = normalized_map.get(normalized_key)
+        if survivor is None:
+            if normalized_name != row["client_name"]:
+                connection.execute(
+                    "UPDATE clients SET client_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (normalized_name, row["id"]),
+                )
+                updated += 1
+            normalized_map[normalized_key] = connection.execute("SELECT * FROM clients WHERE id = ?", (row["id"],)).fetchone()
+            continue
+
+        merged_values = {
+            "price_transferencia": max(float(survivor["price_transferencia"] or 0), float(row["price_transferencia"] or 0)),
+            "price_caminhao_transferencia": max(
+                float(survivor["price_caminhao_transferencia"] or 0), float(row["price_caminhao_transferencia"] or 0)
+            ),
+            "price_combo_transferencia": max(
+                float(survivor["price_combo_transferencia"] or 0), float(row["price_combo_transferencia"] or 0)
+            ),
+            "price_cautelar": max(float(survivor["price_cautelar"] or 0), float(row["price_cautelar"] or 0)),
+            "price_pesquisa": max(float(survivor["price_pesquisa"] or 0), float(row["price_pesquisa"] or 0)),
+            "price_diversos": max(float(survivor["price_diversos"] or 0), float(row["price_diversos"] or 0)),
+        }
+        connection.execute(
+            """
+            UPDATE clients
+            SET
+                price_transferencia = ?,
+                price_caminhao_transferencia = ?,
+                price_combo_transferencia = ?,
+                price_cautelar = ?,
+                price_pesquisa = ?,
+                price_diversos = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                merged_values["price_transferencia"],
+                merged_values["price_caminhao_transferencia"],
+                merged_values["price_combo_transferencia"],
+                merged_values["price_cautelar"],
+                merged_values["price_pesquisa"],
+                merged_values["price_diversos"],
+                survivor["id"],
+            ),
+        )
+        connection.execute("DELETE FROM clients WHERE id = ?", (row["id"],))
+        normalized_map[normalized_key] = connection.execute("SELECT * FROM clients WHERE id = ?", (survivor["id"],)).fetchone()
+        merged += 1
+
+    return {"removed": removed, "updated": updated, "merged": merged}
 
 
 def get_client_catalog(connection: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -2645,9 +2723,10 @@ def client_comparison():
 def list_clients():
     with get_db() as connection:
         sync_clients_catalog(connection)
+        cleanup_clients_catalog(connection)
         clients = get_all_clients(connection)
         items = get_client_catalog(connection)
-    return jsonify({"clients": clients, "items": items})
+    return jsonify({"clients": clients, "items": items, "total_count": len(items)})
 
 
 @app.post("/api/clients")
@@ -2657,11 +2736,14 @@ def create_client():
     try:
         with get_db() as connection:
             saved_client = register_client(connection, client_name, payload)
+            cleanup_clients_catalog(connection)
             clients = get_all_clients(connection)
             items = get_client_catalog(connection)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify({"message": "Cliente cadastrado com sucesso.", "client": saved_client, "clients": clients, "items": items}), 201
+    return jsonify(
+        {"message": "Cliente cadastrado com sucesso.", "client": saved_client, "clients": clients, "items": items, "total_count": len(items)},
+    ), 201
 
 
 @app.put("/api/clients/<int:client_id>")
@@ -2671,12 +2753,15 @@ def edit_client(client_id: int):
     try:
         with get_db() as connection:
             saved_client = update_client(connection, client_id, client_name, payload)
+            cleanup_clients_catalog(connection)
             clients = get_all_clients(connection)
             items = get_client_catalog(connection)
     except ValueError as exc:
         status_code = 404 if "nao encontrado" in str(exc).lower() else 400
         return jsonify({"error": str(exc)}), status_code
-    return jsonify({"message": "Cliente atualizado com sucesso.", "client": saved_client, "clients": clients, "items": items})
+    return jsonify(
+        {"message": "Cliente atualizado com sucesso.", "client": saved_client, "clients": clients, "items": items, "total_count": len(items)}
+    )
 
 
 @app.delete("/api/clients/<int:client_id>")
@@ -2686,9 +2771,28 @@ def delete_client(client_id: int):
         if existing is None:
             return jsonify({"error": "Cliente nao encontrado."}), 404
         connection.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+        cleanup_clients_catalog(connection)
         clients = get_all_clients(connection)
         items = get_client_catalog(connection)
-    return jsonify({"message": "Cliente excluido com sucesso.", "clients": clients, "items": items})
+    return jsonify({"message": "Cliente excluido com sucesso.", "clients": clients, "items": items, "total_count": len(items)})
+
+
+@app.post("/api/clients/cleanup")
+def cleanup_clients():
+    with get_db() as connection:
+        sync_clients_catalog(connection)
+        stats = cleanup_clients_catalog(connection)
+        clients = get_all_clients(connection)
+        items = get_client_catalog(connection)
+    return jsonify(
+        {
+            "message": "Clientes invalidados/ocultos foram limpos com sucesso.",
+            "stats": stats,
+            "clients": clients,
+            "items": items,
+            "total_count": len(items),
+        }
+    )
 
 
 @app.get("/api/partner-requests")

@@ -433,6 +433,9 @@ a { color: inherit; text-decoration: none; }
 .client-list-header {
   margin-top: 18px;
 }
+.client-list-header .form-actions {
+  align-items: center;
+}
 .client-table {
   min-width: 980px;
 }
