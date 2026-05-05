@@ -2732,6 +2732,7 @@ def list_clients():
 def clear_all_clients():
     with get_db() as connection:
         connection.execute("DELETE FROM clients")
+        connection.execute("DELETE FROM sqlite_sequence WHERE name = 'clients'")
         clients = get_all_clients(connection)
         items = get_client_catalog(connection)
     return jsonify(
@@ -2926,7 +2927,6 @@ def create_cash_entry(cash_date: str):
 
     with get_db() as connection:
         ensure_cash_day(connection, cash_date)
-        upsert_client_from_system(connection, entry["customer_name"])
         cursor = connection.execute(
             """
             INSERT INTO cash_entries (
@@ -2974,7 +2974,6 @@ def update_cash_entry(entry_id: int):
             return jsonify({"error": "Lancamento nao encontrado."}), 404
         if existing["synced_to_monthly"]:
             sync_cash_entry_to_monthly(connection, existing, -1)
-        upsert_client_from_system(connection, entry["customer_name"])
         connection.execute(
             """
             UPDATE cash_entries
@@ -3181,7 +3180,6 @@ def create_record():
 
     with get_db() as connection:
         ensure_month(connection, record["year_number"], record["month_number"])
-        upsert_client_from_system(connection, record["partner_name"])
         cursor = connection.execute(
             """
             INSERT INTO records (
@@ -3240,7 +3238,6 @@ def update_record(record_id: int):
             return jsonify({"error": "Registro nao encontrado."}), 404
 
         ensure_month(connection, record["year_number"], record["month_number"])
-        upsert_client_from_system(connection, record["partner_name"])
         connection.execute(
             """
             UPDATE records
