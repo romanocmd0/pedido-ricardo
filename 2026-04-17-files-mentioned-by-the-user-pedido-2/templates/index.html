@@ -15,11 +15,22 @@
         <a class="nav-button" href="/cash-flow">Financeiro</a>
       </nav>
 
-      <section class="panel report-section accordion-section" data-accordion-section="monthly-report">
-        <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Relatorio Mensal</span>
-        </button>
-        <div class="accordion-content" data-accordion-content>
+      <section class="reports-shell">
+        <aside class="panel reports-sidebar">
+          <div class="reports-sidebar-header">
+            <p class="section-tag">Relatorios</p>
+            <h1>Menu</h1>
+          </div>
+          <div class="reports-sidebar-nav">
+            <button class="report-nav-button is-active" type="button" data-report-nav="monthly-report">Relatorio Mensal</button>
+            <button class="report-nav-button" type="button" data-report-nav="comparison">Comparacao de Meses</button>
+            <button class="report-nav-button" type="button" data-report-nav="clients">Comparacao entre Clientes</button>
+            <button class="report-nav-button" type="button" data-report-nav="requests">Requisicoes Parceiros</button>
+          </div>
+        </aside>
+
+        <div class="reports-content-area">
+      <section class="panel report-view is-active" data-report-view="monthly-report">
           <section class="hero accordion-hero">
             <div>
               <p class="eyebrow">Relatorios</p>
@@ -142,14 +153,9 @@
               </tbody>
             </table>
           </div>
-        </div>
       </section>
 
-      <section class="panel report-section accordion-section" data-accordion-section="comparison">
-        <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Comparacao de Meses</span>
-        </button>
-        <div class="accordion-content" data-accordion-content>
+      <section class="panel report-view" data-report-view="comparison">
           <div class="section-header">
             <div>
               <p class="section-tag">Comparacao de meses</p>
@@ -280,14 +286,9 @@
             </tbody>
           </table>
         </div>
-        </div>
       </section>
 
-      <section class="panel report-section accordion-section" data-accordion-section="clients">
-        <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Comparacao entre Clientes</span>
-        </button>
-        <div class="accordion-content" data-accordion-content>
+      <section class="panel report-view" data-report-view="clients">
           <div class="section-header">
             <div>
               <p class="section-tag">Comparacao entre clientes</p>
@@ -358,14 +359,9 @@
             </tbody>
           </table>
         </div>
-        </div>
       </section>
 
-      <section class="panel report-section accordion-section" data-accordion-section="requests">
-        <button class="accordion-toggle" type="button" data-accordion-toggle>
-          <span>Requisicoes Parceiros</span>
-        </button>
-        <div class="accordion-content" data-accordion-content>
+      <section class="panel report-view" data-report-view="requests">
           <div class="section-header">
             <div>
               <p class="section-tag">Requisicoes parceiros</p>
@@ -451,6 +447,7 @@
             </div>
           </section>
         </section>
+      </section>
         </div>
       </section>
     </main>
