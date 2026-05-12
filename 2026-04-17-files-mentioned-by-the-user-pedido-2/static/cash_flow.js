@@ -4,6 +4,7 @@ const cashState = {
   day: null,
   clientNames: [],
   clients: [],
+  clientSearchTerm: "",
 };
 
 const cashElements = {
@@ -47,6 +48,7 @@ const cashElements = {
   clientSuggestions: document.querySelector("#client-name-suggestions"),
   clientRegistrationBody: document.querySelector("#client-registration-body"),
   clientRegistrationCount: document.querySelector("#client-registration-count"),
+  clientRegistrationSearch: document.querySelector("#client-registration-search"),
   body: document.querySelector("#cash-entries-body"),
   dinheiro: document.querySelector("#cash-total-dinheiro"),
   debito: document.querySelector("#cash-total-debito"),
@@ -170,21 +172,35 @@ function applyClientCatalog(clients, items) {
   cashState.clients = items || [];
   renderClientSuggestions(cashState.clientNames);
   renderClientTable();
-  if (cashElements.clientRegistrationCount) {
-    cashElements.clientRegistrationCount.textContent = `${cashState.clients.length} cliente(s)`;
-  }
 }
 
 function renderClientTable() {
   if (!cashElements.clientRegistrationBody) return;
+  const searchTerm = normalizeText(cashState.clientSearchTerm);
+  const filteredClients = !searchTerm
+    ? cashState.clients
+    : cashState.clients.filter((client) => normalizeText(client.client_name).includes(searchTerm));
+
+  if (cashElements.clientRegistrationCount) {
+    cashElements.clientRegistrationCount.textContent = searchTerm
+      ? `${filteredClients.length} de ${cashState.clients.length} cliente(s)`
+      : `${cashState.clients.length} cliente(s)`;
+  }
+
   if (!cashState.clients.length) {
     cashElements.clientRegistrationBody.innerHTML =
       '<tr><td colspan="8" class="empty-state">Nenhum cliente cadastrado ainda.</td></tr>';
     return;
   }
 
+  if (!filteredClients.length) {
+    cashElements.clientRegistrationBody.innerHTML =
+      '<tr><td colspan="8" class="empty-state">Nenhum cliente encontrado</td></tr>';
+    return;
+  }
+
   cashElements.clientRegistrationBody.innerHTML = "";
-  cashState.clients.forEach((client) => {
+  filteredClients.forEach((client) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHtml(client.client_name)}</td>
@@ -671,6 +687,10 @@ function setupEvents() {
   cashElements.clientRegistrationName?.addEventListener("change", handleClientRegistrationLookup);
   cashElements.clientRegistrationName?.addEventListener("blur", handleClientRegistrationLookup);
   cashElements.clientRegistrationClear?.addEventListener("click", resetClientRegistrationForm);
+  cashElements.clientRegistrationSearch?.addEventListener("input", () => {
+    cashState.clientSearchTerm = cashElements.clientRegistrationSearch.value || "";
+    renderClientTable();
+  });
   cashElements.clearButton?.addEventListener("click", resetCashForm);
   cashElements.exportPdfButton?.addEventListener("click", () => {
     window.open(`/api/cash-flow/day/${cashState.activeDate}.pdf`, "_blank");

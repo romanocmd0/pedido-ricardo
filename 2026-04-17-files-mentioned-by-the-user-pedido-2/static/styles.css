@@ -456,6 +456,12 @@ a { color: inherit; text-decoration: none; }
 .client-list-header .form-actions {
   align-items: center;
 }
+.client-search-bar {
+  margin-bottom: 16px;
+}
+.client-search-bar .search-field {
+  max-width: 420px;
+}
 .client-table {
   min-width: 980px;
 }
