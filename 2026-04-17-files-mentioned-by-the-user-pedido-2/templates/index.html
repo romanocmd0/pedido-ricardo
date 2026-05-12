@@ -108,14 +108,28 @@
                 <strong id="summary-transferencia-total-value">R$ 0,00</strong>
               </div>
               <div class="breakdown-card">
-                <span>Total de Cautelar</span>
+                <span>Total de Cautelares</span>
                 <strong id="summary-cautelar-total-value">R$ 0,00</strong>
+              </div>
+              <div class="breakdown-card">
+                <span>Total de Diversos</span>
+                <strong id="summary-diversos-total-value">R$ 0,00</strong>
               </div>
               <div class="breakdown-card">
                 <span>Total de Pesquisa</span>
                 <strong id="summary-pesquisa-total-value">R$ 0,00</strong>
               </div>
             </div>
+          </section>
+
+          <section class="panel totals-breakdown-panel inner-panel">
+            <div class="section-header compact-header">
+              <div>
+                <p class="section-tag">Visao individual</p>
+                <h2>Servicos detalhados</h2>
+              </div>
+            </div>
+            <div id="service-breakdown-grid" class="totals-breakdown"></div>
           </section>
 
           <div class="section-header">
@@ -132,15 +146,23 @@
               <thead>
                 <tr>
                   <th data-sort="partner_name">Parceiro</th>
-                  <th data-sort="transferencia_qty">Transfer.</th>
+                  <th data-sort="cautelar_qty">Cautelar</th>
+                  <th data-sort="super_carro_cautelar_qty">Cautelar Super Carro</th>
+                  <th data-sort="diversos_qty">Diversos</th>
+                  <th data-sort="pesquisa_qty">Pesquisa</th>
                   <th data-sort="caminhao_transferencia_qty">Transf. Caminhao</th>
                   <th data-sort="combo_transferencia_qty">Transf. Combo</th>
-                  <th data-sort="cautelar_qty">Cautelar</th>
-                  <th data-sort="pesquisa_qty">Pesquisa</th>
-                  <th data-sort="unit_transferencia">Vlr. Transfer.</th>
+                  <th data-sort="transferencia_qty">Transf. Carro</th>
+                  <th data-sort="moto_transferencia_qty">Transf. Moto</th>
+                  <th data-sort="super_carro_transferencia_qty">Transf. Super Carro</th>
                   <th data-sort="unit_caminhao_transferencia">Vlr. Caminhao</th>
                   <th data-sort="unit_combo_transferencia">Vlr. Combo</th>
+                  <th data-sort="unit_transferencia">Vlr. Carro</th>
+                  <th data-sort="unit_moto_transferencia">Vlr. Moto</th>
+                  <th data-sort="unit_super_carro_transferencia">Vlr. Super Carro</th>
                   <th data-sort="unit_cautelar">Vlr. Cautelar</th>
+                  <th data-sort="unit_super_carro_cautelar">Vlr. Cautelar Super Carro</th>
+                  <th data-sort="unit_diversos">Vlr. Diversos</th>
                   <th data-sort="unit_pesquisa">Vlr. Pesquisa</th>
                   <th data-sort="total_value">Total</th>
                   <th>Acoes</th>
@@ -148,7 +170,7 @@
               </thead>
               <tbody id="records-body">
                 <tr>
-                  <td colspan="13" class="empty-state">Carregando registros...</td>
+                  <td colspan="21" class="empty-state">Carregando registros...</td>
                 </tr>
               </tbody>
             </table>
@@ -208,7 +230,7 @@
             <div class="section-header">
               <div>
                 <p class="section-tag">Transferencias agrupadas</p>
-                <h2>Transferencias x Cautelar x Pesquisa</h2>
+                <h2>Transferencias x Cautelares x Pesquisa x Diversos</h2>
               </div>
             </div>
             <div id="grouped-pie-chart-empty" class="chart-surface empty-chart">Selecione um mes com dados para visualizar o grafico.</div>
@@ -275,13 +297,14 @@
                 <th>Mes</th>
                 <th>Total geral</th>
                 <th>Transferencias</th>
-                <th>Cautelar</th>
+                <th>Cautelares</th>
                 <th>Pesquisa</th>
+                <th>Diversos</th>
               </tr>
             </thead>
           <tbody id="comparison-body">
               <tr>
-                <td colspan="5" class="empty-state">Carregando comparacao...</td>
+                <td colspan="6" class="empty-state">Carregando comparacao...</td>
               </tr>
             </tbody>
           </table>

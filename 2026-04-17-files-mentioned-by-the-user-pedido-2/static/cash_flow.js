@@ -40,9 +40,12 @@ const cashElements = {
   clientRegistrationSubmit: document.querySelector("#client-registration-submit"),
   clientRegistrationClear: document.querySelector("#client-registration-clear"),
   clientPriceTransferencia: document.querySelector("#client-price-transferencia"),
+  clientPriceMotoTransferencia: document.querySelector("#client-price-moto-transferencia"),
+  clientPriceSuperCarroTransferencia: document.querySelector("#client-price-super-carro-transferencia"),
   clientPriceCaminhaoTransferencia: document.querySelector("#client-price-caminhao-transferencia"),
   clientPriceComboTransferencia: document.querySelector("#client-price-combo-transferencia"),
   clientPriceCautelar: document.querySelector("#client-price-cautelar"),
+  clientPriceSuperCarroCautelar: document.querySelector("#client-price-super-carro-cautelar"),
   clientPricePesquisa: document.querySelector("#client-price-pesquisa"),
   clientPriceDiversos: document.querySelector("#client-price-diversos"),
   clientSuggestions: document.querySelector("#client-name-suggestions"),
@@ -73,12 +76,15 @@ const serviceNavButtons = document.querySelectorAll("[data-service-nav]");
 const serviceViews = document.querySelectorAll("[data-service-view]");
 
 const servicePriceFieldMap = {
-  Transferencia: "price_transferencia",
+  Cautelar: "price_cautelar",
+  "Cautelar de Super Carro": "price_super_carro_cautelar",
+  Diversos: "price_diversos",
+  Pesquisa: "price_pesquisa",
   "Transf. de Caminhao": "price_caminhao_transferencia",
   "Transf. do Combo": "price_combo_transferencia",
-  Cautelar: "price_cautelar",
-  Pesquisa: "price_pesquisa",
-  Diversos: "price_diversos",
+  "Transferencia de Carro": "price_transferencia",
+  "Transferencia de Moto": "price_moto_transferencia",
+  "Transferencia de Super Carro": "price_super_carro_transferencia",
 };
 
 function formatCurrency(value) {
@@ -145,9 +151,12 @@ function currentClientRegistrationPayload() {
   return {
     client_name: cashElements.clientRegistrationName.value.trim(),
     price_transferencia: Number(cashElements.clientPriceTransferencia.value || 0),
+    price_moto_transferencia: Number(cashElements.clientPriceMotoTransferencia.value || 0),
+    price_super_carro_transferencia: Number(cashElements.clientPriceSuperCarroTransferencia.value || 0),
     price_caminhao_transferencia: Number(cashElements.clientPriceCaminhaoTransferencia.value || 0),
     price_combo_transferencia: Number(cashElements.clientPriceComboTransferencia.value || 0),
     price_cautelar: Number(cashElements.clientPriceCautelar.value || 0),
+    price_super_carro_cautelar: Number(cashElements.clientPriceSuperCarroCautelar.value || 0),
     price_pesquisa: Number(cashElements.clientPricePesquisa.value || 0),
     price_diversos: Number(cashElements.clientPriceDiversos.value || 0),
   };
@@ -189,13 +198,13 @@ function renderClientTable() {
 
   if (!cashState.clients.length) {
     cashElements.clientRegistrationBody.innerHTML =
-      '<tr><td colspan="8" class="empty-state">Nenhum cliente cadastrado ainda.</td></tr>';
+      '<tr><td colspan="11" class="empty-state">Nenhum cliente cadastrado ainda.</td></tr>';
     return;
   }
 
   if (!filteredClients.length) {
     cashElements.clientRegistrationBody.innerHTML =
-      '<tr><td colspan="8" class="empty-state">Nenhum cliente encontrado</td></tr>';
+      '<tr><td colspan="11" class="empty-state">Nenhum cliente encontrado</td></tr>';
     return;
   }
 
@@ -204,12 +213,15 @@ function renderClientTable() {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${escapeHtml(client.client_name)}</td>
-      <td>${formatCurrency(client.price_transferencia)}</td>
+      <td>${formatCurrency(client.price_cautelar)}</td>
+      <td>${formatCurrency(client.price_super_carro_cautelar)}</td>
+      <td>${formatCurrency(client.price_diversos)}</td>
+      <td>${formatCurrency(client.price_pesquisa)}</td>
       <td>${formatCurrency(client.price_caminhao_transferencia)}</td>
       <td>${formatCurrency(client.price_combo_transferencia)}</td>
-      <td>${formatCurrency(client.price_cautelar)}</td>
-      <td>${formatCurrency(client.price_pesquisa)}</td>
-      <td>${formatCurrency(client.price_diversos)}</td>
+      <td>${formatCurrency(client.price_transferencia)}</td>
+      <td>${formatCurrency(client.price_moto_transferencia)}</td>
+      <td>${formatCurrency(client.price_super_carro_transferencia)}</td>
       <td></td>
     `;
     const actions = document.createElement("div");
@@ -321,9 +333,12 @@ function resetClientRegistrationForm() {
 function clearClientRegistrationPrices() {
   cashElements.clientRegistrationId.value = "";
   cashElements.clientPriceTransferencia.value = 0;
+  cashElements.clientPriceMotoTransferencia.value = 0;
+  cashElements.clientPriceSuperCarroTransferencia.value = 0;
   cashElements.clientPriceCaminhaoTransferencia.value = 0;
   cashElements.clientPriceComboTransferencia.value = 0;
   cashElements.clientPriceCautelar.value = 0;
+  cashElements.clientPriceSuperCarroCautelar.value = 0;
   cashElements.clientPricePesquisa.value = 0;
   cashElements.clientPriceDiversos.value = 0;
   if (cashElements.clientRegistrationSubmit) cashElements.clientRegistrationSubmit.textContent = "Cadastrar cliente";
@@ -334,9 +349,12 @@ function fillClientRegistrationForm(client) {
   cashElements.clientRegistrationId.value = client.id;
   cashElements.clientRegistrationName.value = client.client_name;
   cashElements.clientPriceTransferencia.value = Number(client.price_transferencia || 0);
+  cashElements.clientPriceMotoTransferencia.value = Number(client.price_moto_transferencia || 0);
+  cashElements.clientPriceSuperCarroTransferencia.value = Number(client.price_super_carro_transferencia || 0);
   cashElements.clientPriceCaminhaoTransferencia.value = Number(client.price_caminhao_transferencia || 0);
   cashElements.clientPriceComboTransferencia.value = Number(client.price_combo_transferencia || 0);
   cashElements.clientPriceCautelar.value = Number(client.price_cautelar || 0);
+  cashElements.clientPriceSuperCarroCautelar.value = Number(client.price_super_carro_cautelar || 0);
   cashElements.clientPricePesquisa.value = Number(client.price_pesquisa || 0);
   cashElements.clientPriceDiversos.value = Number(client.price_diversos || 0);
   if (cashElements.clientRegistrationSubmit) cashElements.clientRegistrationSubmit.textContent = "Atualizar cliente";

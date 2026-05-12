@@ -45,8 +45,20 @@
                 <input id="client-registration-name" type="text" list="client-name-suggestions" required />
               </label>
               <label class="field">
-                <span>Valor Transferencia</span>
-                <input id="client-price-transferencia" type="number" min="0" step="0.01" value="0" />
+                <span>Valor Cautelar</span>
+                <input id="client-price-cautelar" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Cautelar de Super Carro</span>
+                <input id="client-price-super-carro-cautelar" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Diversos</span>
+                <input id="client-price-diversos" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label class="field">
+                <span>Valor Pesquisa</span>
+                <input id="client-price-pesquisa" type="number" min="0" step="0.01" value="0" />
               </label>
               <label class="field">
                 <span>Valor Transf. Caminhao</span>
@@ -57,16 +69,16 @@
                 <input id="client-price-combo-transferencia" type="number" min="0" step="0.01" value="0" />
               </label>
               <label class="field">
-                <span>Valor Cautelar</span>
-                <input id="client-price-cautelar" type="number" min="0" step="0.01" value="0" />
+                <span>Valor Transferencia de Carro</span>
+                <input id="client-price-transferencia" type="number" min="0" step="0.01" value="0" />
               </label>
               <label class="field">
-                <span>Valor Pesquisa</span>
-                <input id="client-price-pesquisa" type="number" min="0" step="0.01" value="0" />
+                <span>Valor Transferencia de Moto</span>
+                <input id="client-price-moto-transferencia" type="number" min="0" step="0.01" value="0" />
               </label>
               <label class="field">
-                <span>Valor Diversos</span>
-                <input id="client-price-diversos" type="number" min="0" step="0.01" value="0" />
+                <span>Valor Transferencia de Super Carro</span>
+                <input id="client-price-super-carro-transferencia" type="number" min="0" step="0.01" value="0" />
               </label>
             </div>
             <div class="form-actions">
@@ -99,18 +111,21 @@
               <thead>
                 <tr>
                   <th>Nome do cliente</th>
-                  <th>Valor Transferencia</th>
+                  <th>Valor Cautelar</th>
+                  <th>Valor Cautelar Super Carro</th>
+                  <th>Valor Diversos</th>
+                  <th>Valor Pesquisa</th>
                   <th>Valor Transf. Caminhao</th>
                   <th>Valor Transf. do Combo</th>
-                  <th>Valor Cautelar</th>
-                  <th>Valor Pesquisa</th>
-                  <th>Valor Diversos</th>
+                  <th>Valor Transferencia de Carro</th>
+                  <th>Valor Transferencia de Moto</th>
+                  <th>Valor Transferencia de Super Carro</th>
                   <th>Acoes</th>
                 </tr>
               </thead>
               <tbody id="client-registration-body">
                 <tr>
-                  <td colspan="8" class="empty-state">Carregando clientes cadastrados...</td>
+                  <td colspan="11" class="empty-state">Carregando clientes cadastrados...</td>
                 </tr>
               </tbody>
             </table>
@@ -148,12 +163,15 @@
               <span>Servico</span>
               <select id="cash-service-name" required disabled>
                 <option value="">Selecione</option>
-                <option value="Transferencia">Transferencia</option>
+                <option value="Cautelar">Cautelar</option>
+                <option value="Cautelar de Super Carro">Cautelar de Super Carro</option>
+                <option value="Diversos">Diversos</option>
+                <option value="Pesquisa">Pesquisa</option>
                 <option value="Transf. de Caminhao">Transf. de Caminhao</option>
                 <option value="Transf. do Combo">Transf. do Combo</option>
-                <option value="Cautelar">Cautelar</option>
-                <option value="Pesquisa">Pesquisa</option>
-                <option value="Diversos">Diversos</option>
+                <option value="Transferencia de Carro">Transferencia de Carro</option>
+                <option value="Transferencia de Moto">Transferencia de Moto</option>
+                <option value="Transferencia de Super Carro">Transferencia de Super Carro</option>
               </select>
             </label>
             <label class="field">

@@ -61,15 +61,23 @@ MONTH_TITLES = {
 ALLOWED_SORT_COLUMNS = {
     "partner_name": "partner_name",
     "transferencia_qty": "transferencia_qty",
+    "moto_transferencia_qty": "moto_transferencia_qty",
+    "super_carro_transferencia_qty": "super_carro_transferencia_qty",
     "caminhao_transferencia_qty": "caminhao_transferencia_qty",
     "combo_transferencia_qty": "combo_transferencia_qty",
     "cautelar_qty": "cautelar_qty",
+    "super_carro_cautelar_qty": "super_carro_cautelar_qty",
     "pesquisa_qty": "pesquisa_qty",
+    "diversos_qty": "diversos_qty",
     "unit_transferencia": "unit_transferencia",
+    "unit_moto_transferencia": "unit_moto_transferencia",
+    "unit_super_carro_transferencia": "unit_super_carro_transferencia",
     "unit_caminhao_transferencia": "unit_caminhao_transferencia",
     "unit_combo_transferencia": "unit_combo_transferencia",
     "unit_cautelar": "unit_cautelar",
+    "unit_super_carro_cautelar": "unit_super_carro_cautelar",
     "unit_pesquisa": "unit_pesquisa",
+    "unit_diversos": "unit_diversos",
     "total_value": "total_value",
     "created_at": "created_at",
 }
@@ -81,14 +89,22 @@ PIX_KEY_VALUE = "64683079000185"
 PIX_MERCHANT_NAME = "CERTIVE"
 PIX_MERCHANT_CITY = "BRASIL"
 CASH_SERVICE_CONFIG = {
-    "TRANSFERENCIA": ("Transferencia", "transferencia_qty", "unit_transferencia"),
+    "TRANSFERENCIA": ("Transferencia de Carro", "transferencia_qty", "unit_transferencia"),
+    "TRANSFERENCIA DE CARRO": ("Transferencia de Carro", "transferencia_qty", "unit_transferencia"),
+    "TRANSFERENCIA DE MOTO": ("Transferencia de Moto", "moto_transferencia_qty", "unit_moto_transferencia"),
+    "TRANSFERENCIA DE SUPER CARRO": (
+        "Transferencia de Super Carro",
+        "super_carro_transferencia_qty",
+        "unit_super_carro_transferencia",
+    ),
     "TRANSF. DE CAMINHAO": ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia"),
     "TRANSFERENCIA DE CAMINHAO": ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia"),
     "TRANSF. DO COMBO": ("Transf. do Combo", "combo_transferencia_qty", "unit_combo_transferencia"),
     "TRANSF. DE COMBO": ("Transf. do Combo", "combo_transferencia_qty", "unit_combo_transferencia"),
     "CAUTELAR": ("Cautelar", "cautelar_qty", "unit_cautelar"),
+    "CAUTELAR DE SUPER CARRO": ("Cautelar de Super Carro", "super_carro_cautelar_qty", "unit_super_carro_cautelar"),
     "PESQUISA": ("Pesquisa", "pesquisa_qty", "unit_pesquisa"),
-    "DIVERSOS": ("Diversos", None, None),
+    "DIVERSOS": ("Diversos", "diversos_qty", "unit_diversos"),
     "PAGAMENTO PARCEIROS": ("Pagamento Parceiros", None, None),
 }
 
@@ -154,13 +170,28 @@ def normalize_client_name(value: str | None) -> str:
 
 
 CLIENT_PRICE_FIELDS = {
-    "Transferencia": "price_transferencia",
+    "Cautelar": "price_cautelar",
+    "Cautelar de Super Carro": "price_super_carro_cautelar",
+    "Diversos": "price_diversos",
+    "Pesquisa": "price_pesquisa",
     "Transf. de Caminhao": "price_caminhao_transferencia",
     "Transf. do Combo": "price_combo_transferencia",
-    "Cautelar": "price_cautelar",
-    "Pesquisa": "price_pesquisa",
-    "Diversos": "price_diversos",
+    "Transferencia de Carro": "price_transferencia",
+    "Transferencia de Moto": "price_moto_transferencia",
+    "Transferencia de Super Carro": "price_super_carro_transferencia",
 }
+
+SERVICE_FIELD_DEFINITIONS = [
+    ("Cautelar", "cautelar_qty", "unit_cautelar", "price_cautelar", "cautelares"),
+    ("Cautelar de Super Carro", "super_carro_cautelar_qty", "unit_super_carro_cautelar", "price_super_carro_cautelar", "cautelares"),
+    ("Diversos", "diversos_qty", "unit_diversos", "price_diversos", "diversos"),
+    ("Pesquisa", "pesquisa_qty", "unit_pesquisa", "price_pesquisa", "pesquisas"),
+    ("Transf. de Caminhao", "caminhao_transferencia_qty", "unit_caminhao_transferencia", "price_caminhao_transferencia", "transferencias"),
+    ("Transf. do Combo", "combo_transferencia_qty", "unit_combo_transferencia", "price_combo_transferencia", "transferencias"),
+    ("Transferencia de Carro", "transferencia_qty", "unit_transferencia", "price_transferencia", "transferencias"),
+    ("Transferencia de Moto", "moto_transferencia_qty", "unit_moto_transferencia", "price_moto_transferencia", "transferencias"),
+    ("Transferencia de Super Carro", "super_carro_transferencia_qty", "unit_super_carro_transferencia", "price_super_carro_transferencia", "transferencias"),
+]
 
 
 def emv_field(field_id: str, value: str) -> str:
@@ -307,15 +338,33 @@ def to_float(value: Any, field_name: str) -> float:
         raise ValueError(f"O campo '{field_name}' deve ser numerico.") from exc
 
 
+def build_service_totals_from_source(source: dict[str, Any] | sqlite3.Row) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, float]]]:
+    services: dict[str, dict[str, Any]] = {}
+    groups = {
+        "transferencias": {"quantity": 0, "value": 0.0},
+        "cautelares": {"quantity": 0, "value": 0.0},
+        "pesquisas": {"quantity": 0, "value": 0.0},
+        "diversos": {"quantity": 0, "value": 0.0},
+    }
+    for label, qty_field, unit_field, _, group_key in SERVICE_FIELD_DEFINITIONS:
+        quantity = int(source[qty_field] or 0)
+        unit_value = float(source[unit_field] or 0)
+        total_value = round(quantity * unit_value, 2)
+        services[label] = {
+            "label": label,
+            "quantity": quantity,
+            "unit_value": unit_value,
+            "total_value": total_value,
+            "group": group_key,
+        }
+        groups[group_key]["quantity"] += quantity
+        groups[group_key]["value"] = round(groups[group_key]["value"] + total_value, 2)
+    return services, groups
+
+
 def calculate_total(record: dict[str, Any]) -> float:
-    return round(
-        (record["transferencia_qty"] * record["unit_transferencia"])
-        + (record["caminhao_transferencia_qty"] * record["unit_caminhao_transferencia"])
-        + (record["combo_transferencia_qty"] * record["unit_combo_transferencia"])
-        + (record["cautelar_qty"] * record["unit_cautelar"])
-        + (record["pesquisa_qty"] * record["unit_pesquisa"]),
-        2,
-    )
+    services, _ = build_service_totals_from_source(record)
+    return round(sum(item["total_value"] for item in services.values()), 2)
 
 
 def validate_main_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -337,32 +386,52 @@ def validate_main_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "period_label": label_from_month(month_number),
         "partner_name": partner_name,
         "transferencia_qty": to_int(payload.get("transferencia_qty"), "transferencia_qty"),
+        "moto_transferencia_qty": to_int(payload.get("moto_transferencia_qty"), "moto_transferencia_qty"),
+        "super_carro_transferencia_qty": to_int(
+            payload.get("super_carro_transferencia_qty"), "super_carro_transferencia_qty"
+        ),
         "caminhao_transferencia_qty": to_int(
             payload.get("caminhao_transferencia_qty"), "caminhao_transferencia_qty"
         ),
         "combo_transferencia_qty": to_int(payload.get("combo_transferencia_qty"), "combo_transferencia_qty"),
         "cautelar_qty": to_int(payload.get("cautelar_qty"), "cautelar_qty"),
+        "super_carro_cautelar_qty": to_int(payload.get("super_carro_cautelar_qty"), "super_carro_cautelar_qty"),
         "pesquisa_qty": to_int(payload.get("pesquisa_qty"), "pesquisa_qty"),
+        "diversos_qty": to_int(payload.get("diversos_qty"), "diversos_qty"),
         "unit_transferencia": to_float(payload.get("unit_transferencia"), "unit_transferencia"),
+        "unit_moto_transferencia": to_float(payload.get("unit_moto_transferencia"), "unit_moto_transferencia"),
+        "unit_super_carro_transferencia": to_float(
+            payload.get("unit_super_carro_transferencia"), "unit_super_carro_transferencia"
+        ),
         "unit_caminhao_transferencia": to_float(
             payload.get("unit_caminhao_transferencia"), "unit_caminhao_transferencia"
         ),
         "unit_combo_transferencia": to_float(payload.get("unit_combo_transferencia"), "unit_combo_transferencia"),
         "unit_cautelar": to_float(payload.get("unit_cautelar"), "unit_cautelar"),
+        "unit_super_carro_cautelar": to_float(payload.get("unit_super_carro_cautelar"), "unit_super_carro_cautelar"),
         "unit_pesquisa": to_float(payload.get("unit_pesquisa"), "unit_pesquisa"),
+        "unit_diversos": to_float(payload.get("unit_diversos"), "unit_diversos"),
     }
 
     for field_name in (
         "transferencia_qty",
+        "moto_transferencia_qty",
+        "super_carro_transferencia_qty",
         "caminhao_transferencia_qty",
         "combo_transferencia_qty",
         "cautelar_qty",
+        "super_carro_cautelar_qty",
         "pesquisa_qty",
+        "diversos_qty",
         "unit_transferencia",
+        "unit_moto_transferencia",
+        "unit_super_carro_transferencia",
         "unit_caminhao_transferencia",
         "unit_combo_transferencia",
         "unit_cautelar",
+        "unit_super_carro_cautelar",
         "unit_pesquisa",
+        "unit_diversos",
     ):
         if record[field_name] < 0:
             raise ValueError(f"O campo '{field_name}' nao pode ser negativo.")
@@ -481,15 +550,23 @@ def cash_month_key(cash_date: str) -> str:
 def monthly_record_payload_from_row(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "transferencia_qty": row["transferencia_qty"],
+        "moto_transferencia_qty": row["moto_transferencia_qty"],
+        "super_carro_transferencia_qty": row["super_carro_transferencia_qty"],
         "caminhao_transferencia_qty": row["caminhao_transferencia_qty"],
         "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
+        "super_carro_cautelar_qty": row["super_carro_cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
+        "diversos_qty": row["diversos_qty"],
         "unit_transferencia": row["unit_transferencia"],
+        "unit_moto_transferencia": row["unit_moto_transferencia"],
+        "unit_super_carro_transferencia": row["unit_super_carro_transferencia"],
         "unit_caminhao_transferencia": row["unit_caminhao_transferencia"],
         "unit_combo_transferencia": row["unit_combo_transferencia"],
         "unit_cautelar": row["unit_cautelar"],
+        "unit_super_carro_cautelar": row["unit_super_carro_cautelar"],
         "unit_pesquisa": row["unit_pesquisa"],
+        "unit_diversos": row["unit_diversos"],
     }
 
 
@@ -535,15 +612,23 @@ def apply_monthly_cash_delta(
             "period_label": label_from_month(month_number),
             "partner_name": customer_name,
             "transferencia_qty": 0,
+            "moto_transferencia_qty": 0,
+            "super_carro_transferencia_qty": 0,
             "caminhao_transferencia_qty": 0,
             "combo_transferencia_qty": 0,
             "cautelar_qty": 0,
+            "super_carro_cautelar_qty": 0,
             "pesquisa_qty": 0,
+            "diversos_qty": 0,
             "unit_transferencia": 0,
+            "unit_moto_transferencia": 0,
+            "unit_super_carro_transferencia": 0,
             "unit_caminhao_transferencia": 0,
             "unit_combo_transferencia": 0,
             "unit_cautelar": 0,
+            "unit_super_carro_cautelar": 0,
             "unit_pesquisa": 0,
+            "unit_diversos": 0,
         }
         record[qty_field] = quantity_delta
         record[unit_field] = amount_delta / quantity_delta if quantity_delta else 0
@@ -557,33 +642,49 @@ def apply_monthly_cash_delta(
                 period_sort,
                 partner_name,
                 transferencia_qty,
+                moto_transferencia_qty,
+                super_carro_transferencia_qty,
                 caminhao_transferencia_qty,
                 combo_transferencia_qty,
                 cautelar_qty,
+                super_carro_cautelar_qty,
                 pesquisa_qty,
+                diversos_qty,
                 unit_transferencia,
+                unit_moto_transferencia,
+                unit_super_carro_transferencia,
                 unit_caminhao_transferencia,
                 unit_combo_transferencia,
                 unit_cautelar,
+                unit_super_carro_cautelar,
                 unit_pesquisa,
+                unit_diversos,
                 total_value,
                 updated_at
-            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
             (
                 record["month_key"],
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["moto_transferencia_qty"],
+                record["super_carro_transferencia_qty"],
                 record["caminhao_transferencia_qty"],
                 record["combo_transferencia_qty"],
                 record["cautelar_qty"],
+                record["super_carro_cautelar_qty"],
                 record["pesquisa_qty"],
+                record["diversos_qty"],
                 record["unit_transferencia"],
+                record["unit_moto_transferencia"],
+                record["unit_super_carro_transferencia"],
                 record["unit_caminhao_transferencia"],
                 record["unit_combo_transferencia"],
                 record["unit_cautelar"],
+                record["unit_super_carro_cautelar"],
                 record["unit_pesquisa"],
+                record["unit_diversos"],
                 record["total_value"],
             ),
         )
@@ -631,15 +732,23 @@ def serialize_main_record(row: sqlite3.Row) -> dict[str, Any]:
         "period_label": row["period_label"],
         "partner_name": row["partner_name"],
         "transferencia_qty": row["transferencia_qty"],
+        "moto_transferencia_qty": row["moto_transferencia_qty"],
+        "super_carro_transferencia_qty": row["super_carro_transferencia_qty"],
         "caminhao_transferencia_qty": row["caminhao_transferencia_qty"],
         "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
+        "super_carro_cautelar_qty": row["super_carro_cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
+        "diversos_qty": row["diversos_qty"],
         "unit_transferencia": row["unit_transferencia"],
+        "unit_moto_transferencia": row["unit_moto_transferencia"],
+        "unit_super_carro_transferencia": row["unit_super_carro_transferencia"],
         "unit_caminhao_transferencia": row["unit_caminhao_transferencia"],
         "unit_combo_transferencia": row["unit_combo_transferencia"],
         "unit_cautelar": row["unit_cautelar"],
+        "unit_super_carro_cautelar": row["unit_super_carro_cautelar"],
         "unit_pesquisa": row["unit_pesquisa"],
+        "unit_diversos": row["unit_diversos"],
         "total_value": row["total_value"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -709,15 +818,23 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
         SELECT
             COALESCE(SUM(total_value), 0) AS total_value,
             COALESCE(SUM(transferencia_qty), 0) AS transferencia_qty,
+            COALESCE(SUM(moto_transferencia_qty), 0) AS moto_transferencia_qty,
+            COALESCE(SUM(super_carro_transferencia_qty), 0) AS super_carro_transferencia_qty,
             COALESCE(SUM(caminhao_transferencia_qty), 0) AS caminhao_transferencia_qty,
             COALESCE(SUM(combo_transferencia_qty), 0) AS combo_transferencia_qty,
             COALESCE(SUM(cautelar_qty), 0) AS cautelar_qty,
+            COALESCE(SUM(super_carro_cautelar_qty), 0) AS super_carro_cautelar_qty,
             COALESCE(SUM(pesquisa_qty), 0) AS pesquisa_qty,
+            COALESCE(SUM(diversos_qty), 0) AS diversos_qty,
             COALESCE(SUM(transferencia_qty * unit_transferencia), 0) AS transferencia_total_value,
+            COALESCE(SUM(moto_transferencia_qty * unit_moto_transferencia), 0) AS moto_transferencia_total_value,
+            COALESCE(SUM(super_carro_transferencia_qty * unit_super_carro_transferencia), 0) AS super_carro_transferencia_total_value,
             COALESCE(SUM(caminhao_transferencia_qty * unit_caminhao_transferencia), 0) AS caminhao_transferencia_total_value,
             COALESCE(SUM(combo_transferencia_qty * unit_combo_transferencia), 0) AS combo_transferencia_total_value,
             COALESCE(SUM(cautelar_qty * unit_cautelar), 0) AS cautelar_total_value,
+            COALESCE(SUM(super_carro_cautelar_qty * unit_super_carro_cautelar), 0) AS super_carro_cautelar_total_value,
             COALESCE(SUM(pesquisa_qty * unit_pesquisa), 0) AS pesquisa_total_value,
+            COALESCE(SUM(diversos_qty * unit_diversos), 0) AS diversos_total_value,
             COUNT(*) AS record_count
         FROM records
         WHERE month_key = ?
@@ -727,46 +844,79 @@ def summarize_month(connection: sqlite3.Connection, month_key: str) -> dict[str,
 
     total_operations = (
         row["transferencia_qty"]
+        + row["moto_transferencia_qty"]
+        + row["super_carro_transferencia_qty"]
         + row["caminhao_transferencia_qty"]
         + row["combo_transferencia_qty"]
         + row["cautelar_qty"]
+        + row["super_carro_cautelar_qty"]
         + row["pesquisa_qty"]
+        + row["diversos_qty"]
     )
     transferencia_group_qty = (
-        row["transferencia_qty"] + row["caminhao_transferencia_qty"] + row["combo_transferencia_qty"]
+        row["transferencia_qty"]
+        + row["moto_transferencia_qty"]
+        + row["super_carro_transferencia_qty"]
+        + row["caminhao_transferencia_qty"]
+        + row["combo_transferencia_qty"]
     )
     transferencia_group_total_value = (
         row["transferencia_total_value"]
+        + row["moto_transferencia_total_value"]
+        + row["super_carro_transferencia_total_value"]
         + row["caminhao_transferencia_total_value"]
         + row["combo_transferencia_total_value"]
     )
+    cautelar_group_qty = row["cautelar_qty"] + row["super_carro_cautelar_qty"]
+    cautelar_group_total_value = row["cautelar_total_value"] + row["super_carro_cautelar_total_value"]
 
     def percentage(value: int) -> float:
         if total_operations == 0:
             return 0.0
         return round((value / total_operations) * 100, 2)
 
+    service_breakdown = [
+        {
+            "label": label,
+            "quantity": int(row[qty_field] or 0),
+            "unit_value": float(row[unit_field] or 0),
+            "total_value": round(int(row[qty_field] or 0) * float(row[unit_field] or 0), 2),
+            "group": group_key,
+        }
+        for label, qty_field, unit_field, _, group_key in SERVICE_FIELD_DEFINITIONS
+    ]
+
     return {
         "total_value": row["total_value"],
         "record_count": row["record_count"],
         "transferencia_qty": row["transferencia_qty"],
+        "moto_transferencia_qty": row["moto_transferencia_qty"],
+        "super_carro_transferencia_qty": row["super_carro_transferencia_qty"],
         "caminhao_transferencia_qty": row["caminhao_transferencia_qty"],
         "combo_transferencia_qty": row["combo_transferencia_qty"],
         "cautelar_qty": row["cautelar_qty"],
+        "super_carro_cautelar_qty": row["super_carro_cautelar_qty"],
         "pesquisa_qty": row["pesquisa_qty"],
+        "diversos_qty": row["diversos_qty"],
         "transferencia_total_value": row["transferencia_total_value"],
+        "moto_transferencia_total_value": row["moto_transferencia_total_value"],
+        "super_carro_transferencia_total_value": row["super_carro_transferencia_total_value"],
         "caminhao_transferencia_total_value": row["caminhao_transferencia_total_value"],
         "combo_transferencia_total_value": row["combo_transferencia_total_value"],
         "cautelar_total_value": row["cautelar_total_value"],
+        "super_carro_cautelar_total_value": row["super_carro_cautelar_total_value"],
         "pesquisa_total_value": row["pesquisa_total_value"],
+        "diversos_total_value": row["diversos_total_value"],
         "transferencia_group_qty": transferencia_group_qty,
         "transferencia_group_total_value": transferencia_group_total_value,
+        "cautelar_group_qty": cautelar_group_qty,
+        "cautelar_group_total_value": cautelar_group_total_value,
         "total_operations": total_operations,
         "transferencia_pct": percentage(transferencia_group_qty),
-        "caminhao_transferencia_pct": percentage(row["caminhao_transferencia_qty"]),
-        "combo_transferencia_pct": percentage(row["combo_transferencia_qty"]),
-        "cautelar_pct": percentage(row["cautelar_qty"]),
+        "cautelar_pct": percentage(cautelar_group_qty),
         "pesquisa_pct": percentage(row["pesquisa_qty"]),
+        "diversos_pct": percentage(row["diversos_qty"]),
+        "service_breakdown": service_breakdown,
     }
 
 
@@ -851,10 +1001,14 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             COUNT(r.id) AS record_count,
             COALESCE(SUM(r.total_value), 0) AS total_value,
             COALESCE(SUM(r.transferencia_qty * r.unit_transferencia), 0) AS transferencia_total_value,
+            COALESCE(SUM(r.moto_transferencia_qty * r.unit_moto_transferencia), 0) AS moto_transferencia_total_value,
+            COALESCE(SUM(r.super_carro_transferencia_qty * r.unit_super_carro_transferencia), 0) AS super_carro_transferencia_total_value,
             COALESCE(SUM(r.caminhao_transferencia_qty * r.unit_caminhao_transferencia), 0) AS caminhao_transferencia_total_value,
             COALESCE(SUM(r.combo_transferencia_qty * r.unit_combo_transferencia), 0) AS combo_transferencia_total_value,
             COALESCE(SUM(r.cautelar_qty * r.unit_cautelar), 0) AS cautelar_total_value,
-            COALESCE(SUM(r.pesquisa_qty * r.unit_pesquisa), 0) AS pesquisa_total_value
+            COALESCE(SUM(r.super_carro_cautelar_qty * r.unit_super_carro_cautelar), 0) AS super_carro_cautelar_total_value,
+            COALESCE(SUM(r.pesquisa_qty * r.unit_pesquisa), 0) AS pesquisa_total_value,
+            COALESCE(SUM(r.diversos_qty * r.unit_diversos), 0) AS diversos_total_value
         FROM months m
         LEFT JOIN records r ON r.month_key = m.month_key
         GROUP BY m.month_key, m.month_title, m.year_number, m.month_number
@@ -871,13 +1025,14 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             "total_value": row["total_value"],
             "transferencia_total_value": (
                 row["transferencia_total_value"]
+                + row["moto_transferencia_total_value"]
+                + row["super_carro_transferencia_total_value"]
                 + row["caminhao_transferencia_total_value"]
                 + row["combo_transferencia_total_value"]
             ),
-            "caminhao_transferencia_total_value": row["caminhao_transferencia_total_value"],
-            "combo_transferencia_total_value": row["combo_transferencia_total_value"],
-            "cautelar_total_value": row["cautelar_total_value"],
+            "cautelar_total_value": row["cautelar_total_value"] + row["super_carro_cautelar_total_value"],
             "pesquisa_total_value": row["pesquisa_total_value"],
+            "diversos_total_value": row["diversos_total_value"],
         }
         for row in rows
     ]
@@ -886,6 +1041,12 @@ def get_comparison_data(connection: sqlite3.Connection) -> list[dict[str, Any]]:
 def get_client_price_payload(payload: dict[str, Any]) -> dict[str, float]:
     prices = {
         "price_transferencia": round(to_float(payload.get("price_transferencia"), "price_transferencia"), 2),
+        "price_moto_transferencia": round(
+            to_float(payload.get("price_moto_transferencia"), "price_moto_transferencia"), 2
+        ),
+        "price_super_carro_transferencia": round(
+            to_float(payload.get("price_super_carro_transferencia"), "price_super_carro_transferencia"), 2
+        ),
         "price_caminhao_transferencia": round(
             to_float(payload.get("price_caminhao_transferencia"), "price_caminhao_transferencia"), 2
         ),
@@ -893,6 +1054,9 @@ def get_client_price_payload(payload: dict[str, Any]) -> dict[str, float]:
             to_float(payload.get("price_combo_transferencia"), "price_combo_transferencia"), 2
         ),
         "price_cautelar": round(to_float(payload.get("price_cautelar"), "price_cautelar"), 2),
+        "price_super_carro_cautelar": round(
+            to_float(payload.get("price_super_carro_cautelar"), "price_super_carro_cautelar"), 2
+        ),
         "price_pesquisa": round(to_float(payload.get("price_pesquisa"), "price_pesquisa"), 2),
         "price_diversos": round(to_float(payload.get("price_diversos"), "price_diversos"), 2),
     }
@@ -939,9 +1103,12 @@ def cleanup_clients_catalog(connection: sqlite3.Connection) -> dict[str, int]:
             id,
             client_name,
             price_transferencia,
+            price_moto_transferencia,
+            price_super_carro_transferencia,
             price_caminhao_transferencia,
             price_combo_transferencia,
             price_cautelar,
+            price_super_carro_cautelar,
             price_pesquisa,
             price_diversos
         FROM clients
@@ -975,6 +1142,12 @@ def cleanup_clients_catalog(connection: sqlite3.Connection) -> dict[str, int]:
 
         merged_values = {
             "price_transferencia": max(float(survivor["price_transferencia"] or 0), float(row["price_transferencia"] or 0)),
+            "price_moto_transferencia": max(
+                float(survivor["price_moto_transferencia"] or 0), float(row["price_moto_transferencia"] or 0)
+            ),
+            "price_super_carro_transferencia": max(
+                float(survivor["price_super_carro_transferencia"] or 0), float(row["price_super_carro_transferencia"] or 0)
+            ),
             "price_caminhao_transferencia": max(
                 float(survivor["price_caminhao_transferencia"] or 0), float(row["price_caminhao_transferencia"] or 0)
             ),
@@ -982,6 +1155,9 @@ def cleanup_clients_catalog(connection: sqlite3.Connection) -> dict[str, int]:
                 float(survivor["price_combo_transferencia"] or 0), float(row["price_combo_transferencia"] or 0)
             ),
             "price_cautelar": max(float(survivor["price_cautelar"] or 0), float(row["price_cautelar"] or 0)),
+            "price_super_carro_cautelar": max(
+                float(survivor["price_super_carro_cautelar"] or 0), float(row["price_super_carro_cautelar"] or 0)
+            ),
             "price_pesquisa": max(float(survivor["price_pesquisa"] or 0), float(row["price_pesquisa"] or 0)),
             "price_diversos": max(float(survivor["price_diversos"] or 0), float(row["price_diversos"] or 0)),
         }
@@ -990,9 +1166,12 @@ def cleanup_clients_catalog(connection: sqlite3.Connection) -> dict[str, int]:
             UPDATE clients
             SET
                 price_transferencia = ?,
+                price_moto_transferencia = ?,
+                price_super_carro_transferencia = ?,
                 price_caminhao_transferencia = ?,
                 price_combo_transferencia = ?,
                 price_cautelar = ?,
+                price_super_carro_cautelar = ?,
                 price_pesquisa = ?,
                 price_diversos = ?,
                 updated_at = CURRENT_TIMESTAMP
@@ -1000,9 +1179,12 @@ def cleanup_clients_catalog(connection: sqlite3.Connection) -> dict[str, int]:
             """,
             (
                 merged_values["price_transferencia"],
+                merged_values["price_moto_transferencia"],
+                merged_values["price_super_carro_transferencia"],
                 merged_values["price_caminhao_transferencia"],
                 merged_values["price_combo_transferencia"],
                 merged_values["price_cautelar"],
+                merged_values["price_super_carro_cautelar"],
                 merged_values["price_pesquisa"],
                 merged_values["price_diversos"],
                 survivor["id"],
@@ -1022,9 +1204,12 @@ def get_client_catalog(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             id,
             client_name,
             price_transferencia,
+            price_moto_transferencia,
+            price_super_carro_transferencia,
             price_caminhao_transferencia,
             price_combo_transferencia,
             price_cautelar,
+            price_super_carro_cautelar,
             price_pesquisa,
             price_diversos
         FROM clients
@@ -1037,9 +1222,12 @@ def get_client_catalog(connection: sqlite3.Connection) -> list[dict[str, Any]]:
             "id": row["id"],
             "client_name": row["client_name"],
             "price_transferencia": float(row["price_transferencia"] or 0),
+            "price_moto_transferencia": float(row["price_moto_transferencia"] or 0),
+            "price_super_carro_transferencia": float(row["price_super_carro_transferencia"] or 0),
             "price_caminhao_transferencia": float(row["price_caminhao_transferencia"] or 0),
             "price_combo_transferencia": float(row["price_combo_transferencia"] or 0),
             "price_cautelar": float(row["price_cautelar"] or 0),
+            "price_super_carro_cautelar": float(row["price_super_carro_cautelar"] or 0),
             "price_pesquisa": float(row["price_pesquisa"] or 0),
             "price_diversos": float(row["price_diversos"] or 0),
         }
@@ -1062,22 +1250,28 @@ def register_client(connection: sqlite3.Connection, client_name: str, payload: d
         INSERT INTO clients (
             client_name,
             price_transferencia,
+            price_moto_transferencia,
+            price_super_carro_transferencia,
             price_caminhao_transferencia,
             price_combo_transferencia,
             price_cautelar,
+            price_super_carro_cautelar,
             price_pesquisa,
             price_diversos,
             created_at,
             updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
         (
             normalized_name,
             prices["price_transferencia"],
+            prices["price_moto_transferencia"],
+            prices["price_super_carro_transferencia"],
             prices["price_caminhao_transferencia"],
             prices["price_combo_transferencia"],
             prices["price_cautelar"],
+            prices["price_super_carro_cautelar"],
             prices["price_pesquisa"],
             prices["price_diversos"],
         ),
@@ -1087,9 +1281,12 @@ def register_client(connection: sqlite3.Connection, client_name: str, payload: d
         "id": row["id"],
         "client_name": row["client_name"],
         "price_transferencia": float(row["price_transferencia"] or 0),
+        "price_moto_transferencia": float(row["price_moto_transferencia"] or 0),
+        "price_super_carro_transferencia": float(row["price_super_carro_transferencia"] or 0),
         "price_caminhao_transferencia": float(row["price_caminhao_transferencia"] or 0),
         "price_combo_transferencia": float(row["price_combo_transferencia"] or 0),
         "price_cautelar": float(row["price_cautelar"] or 0),
+        "price_super_carro_cautelar": float(row["price_super_carro_cautelar"] or 0),
         "price_pesquisa": float(row["price_pesquisa"] or 0),
         "price_diversos": float(row["price_diversos"] or 0),
     }
@@ -1112,9 +1309,12 @@ def update_client(connection: sqlite3.Connection, client_id: int, client_name: s
         SET
             client_name = ?,
             price_transferencia = ?,
+            price_moto_transferencia = ?,
+            price_super_carro_transferencia = ?,
             price_caminhao_transferencia = ?,
             price_combo_transferencia = ?,
             price_cautelar = ?,
+            price_super_carro_cautelar = ?,
             price_pesquisa = ?,
             price_diversos = ?,
             updated_at = CURRENT_TIMESTAMP
@@ -1123,9 +1323,12 @@ def update_client(connection: sqlite3.Connection, client_id: int, client_name: s
         (
             normalized_name,
             prices["price_transferencia"],
+            prices["price_moto_transferencia"],
+            prices["price_super_carro_transferencia"],
             prices["price_caminhao_transferencia"],
             prices["price_combo_transferencia"],
             prices["price_cautelar"],
+            prices["price_super_carro_cautelar"],
             prices["price_pesquisa"],
             prices["price_diversos"],
             client_id,
@@ -1136,9 +1339,12 @@ def update_client(connection: sqlite3.Connection, client_id: int, client_name: s
         "id": row["id"],
         "client_name": row["client_name"],
         "price_transferencia": float(row["price_transferencia"] or 0),
+        "price_moto_transferencia": float(row["price_moto_transferencia"] or 0),
+        "price_super_carro_transferencia": float(row["price_super_carro_transferencia"] or 0),
         "price_caminhao_transferencia": float(row["price_caminhao_transferencia"] or 0),
         "price_combo_transferencia": float(row["price_combo_transferencia"] or 0),
         "price_cautelar": float(row["price_cautelar"] or 0),
+        "price_super_carro_cautelar": float(row["price_super_carro_cautelar"] or 0),
         "price_pesquisa": float(row["price_pesquisa"] or 0),
         "price_diversos": float(row["price_diversos"] or 0),
     }
@@ -1156,15 +1362,18 @@ def upsert_client_from_system(connection: sqlite3.Connection, client_name: str) 
         INSERT INTO clients (
             client_name,
             price_transferencia,
+            price_moto_transferencia,
+            price_super_carro_transferencia,
             price_caminhao_transferencia,
             price_combo_transferencia,
             price_cautelar,
+            price_super_carro_cautelar,
             price_pesquisa,
             price_diversos,
             created_at,
             updated_at
         )
-        VALUES (?, 0, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, 0, 0, 0, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """,
         (normalized_name,),
     )
@@ -1179,10 +1388,14 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
             id,
             partner_name,
             (transferencia_qty * unit_transferencia) AS transferencia_total,
+            (moto_transferencia_qty * unit_moto_transferencia) AS moto_transferencia_total,
+            (super_carro_transferencia_qty * unit_super_carro_transferencia) AS super_carro_transferencia_total,
             (caminhao_transferencia_qty * unit_caminhao_transferencia) AS caminhao_transferencia_total,
             (combo_transferencia_qty * unit_combo_transferencia) AS combo_total,
             (cautelar_qty * unit_cautelar) AS cautelar_total,
+            (super_carro_cautelar_qty * unit_super_carro_cautelar) AS super_carro_cautelar_total,
             (pesquisa_qty * unit_pesquisa) AS pesquisa_total,
+            (diversos_qty * unit_diversos) AS diversos_total,
             total_value
         FROM records
         WHERE month_key = ?
@@ -1203,28 +1416,38 @@ def get_month_chart_data(connection: sqlite3.Connection, month_key: str) -> dict
         }
 
     pie_data = [
-        {"label": "Transferencia", "value": summary["transferencia_total_value"]},
-        {"label": "Transf. Caminhao", "value": summary["caminhao_transferencia_total_value"]},
-        {"label": "Transf. de Combo", "value": summary["combo_transferencia_total_value"]},
         {"label": "Cautelar", "value": summary["cautelar_total_value"]},
+        {"label": "Cautelar de Super Carro", "value": summary["super_carro_cautelar_total_value"]},
+        {"label": "Diversos", "value": summary["diversos_total_value"]},
         {"label": "Pesquisa", "value": summary["pesquisa_total_value"]},
+        {"label": "Transf. de Caminhao", "value": summary["caminhao_transferencia_total_value"]},
+        {"label": "Transf. do Combo", "value": summary["combo_transferencia_total_value"]},
+        {"label": "Transferencia de Carro", "value": summary["transferencia_total_value"]},
+        {"label": "Transferencia de Moto", "value": summary["moto_transferencia_total_value"]},
+        {"label": "Transferencia de Super Carro", "value": summary["super_carro_transferencia_total_value"]},
     ]
     quantity_data = [
-        {"label": "Transferencia", "value": summary["transferencia_qty"]},
-        {"label": "Transf. Caminhao", "value": summary["caminhao_transferencia_qty"]},
-        {"label": "Transf. de Combo", "value": summary["combo_transferencia_qty"]},
         {"label": "Cautelar", "value": summary["cautelar_qty"]},
+        {"label": "Cautelar de Super Carro", "value": summary["super_carro_cautelar_qty"]},
+        {"label": "Diversos", "value": summary["diversos_qty"]},
         {"label": "Pesquisa", "value": summary["pesquisa_qty"]},
+        {"label": "Transf. de Caminhao", "value": summary["caminhao_transferencia_qty"]},
+        {"label": "Transf. do Combo", "value": summary["combo_transferencia_qty"]},
+        {"label": "Transferencia de Carro", "value": summary["transferencia_qty"]},
+        {"label": "Transferencia de Moto", "value": summary["moto_transferencia_qty"]},
+        {"label": "Transferencia de Super Carro", "value": summary["super_carro_transferencia_qty"]},
     ]
     grouped_pie_data = [
         {"label": "Transferencias", "value": summary["transferencia_group_total_value"]},
-        {"label": "Cautelar", "value": summary["cautelar_total_value"]},
+        {"label": "Cautelares", "value": summary["cautelar_group_total_value"]},
         {"label": "Pesquisa", "value": summary["pesquisa_total_value"]},
+        {"label": "Diversos", "value": summary["diversos_total_value"]},
     ]
     grouped_quantity_data = [
         {"label": "Transferencias", "value": summary["transferencia_group_qty"]},
-        {"label": "Cautelar", "value": summary["cautelar_qty"]},
+        {"label": "Cautelares", "value": summary["cautelar_group_qty"]},
         {"label": "Pesquisa", "value": summary["pesquisa_qty"]},
+        {"label": "Diversos", "value": summary["diversos_qty"]},
     ]
 
     return {
@@ -1244,7 +1467,20 @@ def get_client_history(connection: sqlite3.Connection, partner_name: str) -> dic
         SELECT
             m.month_key,
             m.month_title,
-            COALESCE(SUM(r.transferencia_qty + r.caminhao_transferencia_qty + r.combo_transferencia_qty + r.cautelar_qty + r.pesquisa_qty), 0) AS vistoria_count,
+            COALESCE(
+                SUM(
+                    r.transferencia_qty
+                    + r.moto_transferencia_qty
+                    + r.super_carro_transferencia_qty
+                    + r.caminhao_transferencia_qty
+                    + r.combo_transferencia_qty
+                    + r.cautelar_qty
+                    + r.super_carro_cautelar_qty
+                    + r.pesquisa_qty
+                    + r.diversos_qty
+                ),
+                0
+            ) AS vistoria_count,
             COALESCE(SUM(r.total_value), 0) AS total_value
         FROM months m
         JOIN records r ON r.month_key = m.month_key
@@ -1277,15 +1513,13 @@ def build_month_metrics(connection: sqlite3.Connection, month_key: str) -> dict[
         "month_title": get_month_title(connection, month_key),
         "total_value": summary["total_value"],
         "transferencia_total_value": summary["transferencia_group_total_value"],
-        "caminhao_transferencia_total_value": summary["caminhao_transferencia_total_value"],
-        "combo_transferencia_total_value": summary["combo_transferencia_total_value"],
-        "cautelar_total_value": summary["cautelar_total_value"],
+        "cautelar_total_value": summary["cautelar_group_total_value"],
         "pesquisa_total_value": summary["pesquisa_total_value"],
+        "diversos_total_value": summary["diversos_total_value"],
         "transferencia_qty": summary["transferencia_group_qty"],
-        "caminhao_transferencia_qty": summary["caminhao_transferencia_qty"],
-        "combo_transferencia_qty": summary["combo_transferencia_qty"],
-        "cautelar_qty": summary["cautelar_qty"],
+        "cautelar_qty": summary["cautelar_group_qty"],
         "pesquisa_qty": summary["pesquisa_qty"],
+        "diversos_qty": summary["diversos_qty"],
         "total_operations": summary["total_operations"],
     }
 
@@ -1308,16 +1542,14 @@ def compare_two_months(connection: sqlite3.Connection, month_key_a: str, month_k
     keys = [
         "total_value",
         "transferencia_total_value",
-        "caminhao_transferencia_total_value",
-        "combo_transferencia_total_value",
         "cautelar_total_value",
         "pesquisa_total_value",
+        "diversos_total_value",
         "total_operations",
         "transferencia_qty",
-        "caminhao_transferencia_qty",
-        "combo_transferencia_qty",
         "cautelar_qty",
         "pesquisa_qty",
+        "diversos_qty",
     ]
     deltas = {key: calculate_delta(second[key], first[key]) for key in keys}
     return {"first": first, "second": second, "delta": deltas}
@@ -1335,7 +1567,20 @@ def get_client_ranking(connection: sqlite3.Connection, month_key: str | None) ->
         SELECT
             partner_name,
             COALESCE(SUM(total_value), 0) AS total_value,
-            COALESCE(SUM(transferencia_qty + caminhao_transferencia_qty + combo_transferencia_qty + cautelar_qty + pesquisa_qty), 0) AS vistoria_count
+            COALESCE(
+                SUM(
+                    transferencia_qty
+                    + moto_transferencia_qty
+                    + super_carro_transferencia_qty
+                    + caminhao_transferencia_qty
+                    + combo_transferencia_qty
+                    + cautelar_qty
+                    + super_carro_cautelar_qty
+                    + pesquisa_qty
+                    + diversos_qty
+                ),
+                0
+            ) AS vistoria_count
         FROM records
         {condition}
         GROUP BY partner_name
@@ -1780,7 +2025,7 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     header_fill = PatternFill("solid", fgColor="D4AF37")
     header_font = Font(bold=True, color="0E2A47")
 
-    sheet.merge_cells("A1:L1")
+    sheet.merge_cells("A1:T1")
     sheet["A1"] = f"Relatorio Mensal - {report['month_title']}"
     sheet["A1"].fill = title_fill
     sheet["A1"].font = title_font
@@ -1790,24 +2035,26 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     summary_rows = [
         ("Valor total", summary["total_value"]),
         ("Total de Transferencias", summary["transferencia_group_total_value"]),
-        ("Total Transf. de Combo", summary["combo_transferencia_total_value"]),
-        ("Total Cautelar", summary["cautelar_total_value"]),
+        ("Total Cautelares", summary["cautelar_group_total_value"]),
+        ("Total Diversos", summary["diversos_total_value"]),
         ("Total Pesquisa", summary["pesquisa_total_value"]),
         ("Registros no mes", summary["record_count"]),
         ("Total de operacoes", summary["total_operations"]),
         ("Qtd. Transferencias", summary["transferencia_group_qty"]),
-        ("Qtd. Transf. Caminhao", summary["caminhao_transferencia_qty"]),
-        ("Qtd. Transf. de Combo", summary["combo_transferencia_qty"]),
-        ("Qtd. Cautelares", summary["cautelar_qty"]),
+        ("Qtd. Cautelares", summary["cautelar_group_qty"]),
         ("Qtd. Pesquisas", summary["pesquisa_qty"]),
+        ("Qtd. Diversos", summary["diversos_qty"]),
         ("Percentual Transferencias", f"{summary['transferencia_pct']}%"),
-        ("Percentual Transf. Caminhao", f"{summary['caminhao_transferencia_pct']}%"),
-        ("Percentual Transf. de Combo", f"{summary['combo_transferencia_pct']}%"),
         ("Percentual Cautelares", f"{summary['cautelar_pct']}%"),
         ("Percentual Pesquisas", f"{summary['pesquisa_pct']}%"),
+        ("Percentual Diversos", f"{summary['diversos_pct']}%"),
     ]
 
     current_row = 3
+    for item in summary["service_breakdown"]:
+        summary_rows.append((f"{item['label']} - quantidade", item["quantity"]))
+        summary_rows.append((f"{item['label']} - total", item["total_value"]))
+
     for label, value in summary_rows:
         sheet[f"A{current_row}"] = label
         sheet[f"B{current_row}"] = value
@@ -1816,15 +2063,23 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
     current_row += 1
     headers = [
         "Parceiro",
-        "Transfer.",
-        "Transf. Caminhao",
-        "Transf. de Combo",
         "Cautelar",
+        "Cautelar Super Carro",
+        "Diversos",
         "Pesquisa",
-        "Vlr. Transfer.",
+        "Transf. Caminhao",
+        "Transf. do Combo",
+        "Transferencia Carro",
+        "Transferencia Moto",
+        "Transferencia Super Carro",
         "Vlr. Caminhao",
         "Vlr. Combo",
+        "Vlr. Carro",
+        "Vlr. Moto",
+        "Vlr. Super Carro",
         "Vlr. Cautelar",
+        "Vlr. Cautelar Super Carro",
+        "Vlr. Diversos",
         "Vlr. Pesquisa",
         "Total",
     ]
@@ -1837,15 +2092,23 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
         current_row += 1
         values = [
             row["partner_name"],
-            row["transferencia_qty"],
+            row["cautelar_qty"],
+            row["super_carro_cautelar_qty"],
+            row["diversos_qty"],
+            row["pesquisa_qty"],
             row["caminhao_transferencia_qty"],
             row["combo_transferencia_qty"],
-            row["cautelar_qty"],
-            row["pesquisa_qty"],
-            row["unit_transferencia"],
+            row["transferencia_qty"],
+            row["moto_transferencia_qty"],
+            row["super_carro_transferencia_qty"],
             row["unit_caminhao_transferencia"],
             row["unit_combo_transferencia"],
+            row["unit_transferencia"],
+            row["unit_moto_transferencia"],
+            row["unit_super_carro_transferencia"],
             row["unit_cautelar"],
+            row["unit_super_carro_cautelar"],
+            row["unit_diversos"],
             row["unit_pesquisa"],
             row["total_value"],
         ]
@@ -1854,17 +2117,25 @@ def build_excel_report(report: dict[str, Any]) -> io.BytesIO:
 
     for column_letter, width in {
         "A": 28,
-        "B": 12,
+        "B": 14,
         "C": 18,
-        "D": 18,
+        "D": 12,
         "E": 12,
-        "F": 12,
-        "G": 15,
-        "H": 15,
-        "I": 15,
-        "J": 15,
+        "F": 18,
+        "G": 18,
+        "H": 18,
+        "I": 16,
+        "J": 20,
         "K": 15,
         "L": 15,
+        "M": 15,
+        "N": 15,
+        "O": 18,
+        "P": 15,
+        "Q": 15,
+        "R": 15,
+        "S": 15,
+        "T": 15,
     }.items():
         sheet.column_dimensions[column_letter].width = width
 
@@ -1892,22 +2163,23 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         ["Metrica", "Valor"],
         ["Valor total", f"R$ {summary['total_value']:.2f}"],
         ["Total de Transferencias", f"R$ {summary['transferencia_group_total_value']:.2f}"],
-        ["Total Transf. de Combo", f"R$ {summary['combo_transferencia_total_value']:.2f}"],
-        ["Total Cautelar", f"R$ {summary['cautelar_total_value']:.2f}"],
+        ["Total Cautelares", f"R$ {summary['cautelar_group_total_value']:.2f}"],
+        ["Total Diversos", f"R$ {summary['diversos_total_value']:.2f}"],
         ["Total Pesquisa", f"R$ {summary['pesquisa_total_value']:.2f}"],
         ["Registros no mes", str(summary["record_count"])],
         ["Total de operacoes", str(summary["total_operations"])],
         ["Qtd. Transferencias", str(summary["transferencia_group_qty"])],
-        ["Qtd. Transf. Caminhao", str(summary["caminhao_transferencia_qty"])],
-        ["Qtd. Transf. de Combo", str(summary["combo_transferencia_qty"])],
-        ["Qtd. Cautelares", str(summary["cautelar_qty"])],
+        ["Qtd. Cautelares", str(summary["cautelar_group_qty"])],
         ["Qtd. Pesquisas", str(summary["pesquisa_qty"])],
+        ["Qtd. Diversos", str(summary["diversos_qty"])],
         ["Percentual Transferencias", f"{summary['transferencia_pct']}%"],
-        ["Percentual Transf. Caminhao", f"{summary['caminhao_transferencia_pct']}%"],
-        ["Percentual Transf. de Combo", f"{summary['combo_transferencia_pct']}%"],
         ["Percentual Cautelares", f"{summary['cautelar_pct']}%"],
         ["Percentual Pesquisas", f"{summary['pesquisa_pct']}%"],
+        ["Percentual Diversos", f"{summary['diversos_pct']}%"],
     ]
+    for item in summary["service_breakdown"]:
+        summary_data.append([f"{item['label']} - quantidade", str(item["quantity"])])
+        summary_data.append([f"{item['label']} - total", f"R$ {item['total_value']:.2f}"])
     summary_table = Table(summary_data, colWidths=[70 * mm, 45 * mm])
     summary_table.setStyle(
         TableStyle(
@@ -1924,15 +2196,23 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
 
     table_data = [[
         "Parceiro",
-        "Transfer.",
+        "Cautelar",
+        "Cautelar SC",
+        "Diversos",
+        "Pesquisa",
         "Caminhao",
         "Combo",
-        "Cautelar",
-        "Pesquisa",
-        "Vlr. Transfer.",
+        "Transf. Carro",
+        "Transf. Moto",
+        "Transf. Super",
         "Vlr. Caminhao",
         "Vlr. Combo",
+        "Vlr. Carro",
+        "Vlr. Moto",
+        "Vlr. Super",
         "Vlr. Cautelar",
+        "Vlr. Cautelar SC",
+        "Vlr. Diversos",
         "Vlr. Pesquisa",
         "Total",
     ]]
@@ -1940,15 +2220,23 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         table_data.append(
             [
                 row["partner_name"],
-                row["transferencia_qty"],
+                row["cautelar_qty"],
+                row["super_carro_cautelar_qty"],
+                row["diversos_qty"],
+                row["pesquisa_qty"],
                 row["caminhao_transferencia_qty"],
                 row["combo_transferencia_qty"],
-                row["cautelar_qty"],
-                row["pesquisa_qty"],
-                f"R$ {row['unit_transferencia']:.2f}",
+                row["transferencia_qty"],
+                row["moto_transferencia_qty"],
+                row["super_carro_transferencia_qty"],
                 f"R$ {row['unit_caminhao_transferencia']:.2f}",
                 f"R$ {row['unit_combo_transferencia']:.2f}",
+                f"R$ {row['unit_transferencia']:.2f}",
+                f"R$ {row['unit_moto_transferencia']:.2f}",
+                f"R$ {row['unit_super_carro_transferencia']:.2f}",
                 f"R$ {row['unit_cautelar']:.2f}",
+                f"R$ {row['unit_super_carro_cautelar']:.2f}",
+                f"R$ {row['unit_diversos']:.2f}",
                 f"R$ {row['unit_pesquisa']:.2f}",
                 f"R$ {row['total_value']:.2f}",
             ]
@@ -1957,18 +2245,25 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
     table = Table(
         table_data,
         colWidths=[
-            39 * mm,
+            34 * mm,
+            11 * mm,
             14 * mm,
-            16 * mm,
-            16 * mm,
+            12 * mm,
+            12 * mm,
             14 * mm,
             14 * mm,
-            19 * mm,
-            19 * mm,
-            19 * mm,
-            19 * mm,
-            19 * mm,
-            19 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            14 * mm,
+            15 * mm,
         ],
         repeatRows=1,
     )
@@ -2331,9 +2626,12 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_name TEXT NOT NULL UNIQUE,
                 price_transferencia REAL NOT NULL DEFAULT 0,
+                price_moto_transferencia REAL NOT NULL DEFAULT 0,
+                price_super_carro_transferencia REAL NOT NULL DEFAULT 0,
                 price_caminhao_transferencia REAL NOT NULL DEFAULT 0,
                 price_combo_transferencia REAL NOT NULL DEFAULT 0,
                 price_cautelar REAL NOT NULL DEFAULT 0,
+                price_super_carro_cautelar REAL NOT NULL DEFAULT 0,
                 price_pesquisa REAL NOT NULL DEFAULT 0,
                 price_diversos REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2357,15 +2655,23 @@ def init_db() -> None:
                 period_sort INTEGER NOT NULL DEFAULT 99,
                 partner_name TEXT NOT NULL,
                 transferencia_qty INTEGER NOT NULL DEFAULT 0,
+                moto_transferencia_qty INTEGER NOT NULL DEFAULT 0,
+                super_carro_transferencia_qty INTEGER NOT NULL DEFAULT 0,
                 caminhao_transferencia_qty INTEGER NOT NULL DEFAULT 0,
                 combo_transferencia_qty INTEGER NOT NULL DEFAULT 0,
                 cautelar_qty INTEGER NOT NULL DEFAULT 0,
+                super_carro_cautelar_qty INTEGER NOT NULL DEFAULT 0,
                 pesquisa_qty INTEGER NOT NULL DEFAULT 0,
+                diversos_qty INTEGER NOT NULL DEFAULT 0,
                 unit_transferencia REAL NOT NULL DEFAULT 0,
+                unit_moto_transferencia REAL NOT NULL DEFAULT 0,
+                unit_super_carro_transferencia REAL NOT NULL DEFAULT 0,
                 unit_caminhao_transferencia REAL NOT NULL DEFAULT 0,
                 unit_combo_transferencia REAL NOT NULL DEFAULT 0,
                 unit_cautelar REAL NOT NULL DEFAULT 0,
+                unit_super_carro_cautelar REAL NOT NULL DEFAULT 0,
                 unit_pesquisa REAL NOT NULL DEFAULT 0,
+                unit_diversos REAL NOT NULL DEFAULT 0,
                 total_value REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -2405,6 +2711,14 @@ def init_db() -> None:
         columns = {row["name"] for row in connection.execute("PRAGMA table_info(records)").fetchall()}
         if "month_key" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN month_key TEXT")
+        if "moto_transferencia_qty" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN moto_transferencia_qty INTEGER NOT NULL DEFAULT 0")
+        if "unit_moto_transferencia" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN unit_moto_transferencia REAL NOT NULL DEFAULT 0")
+        if "super_carro_transferencia_qty" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN super_carro_transferencia_qty INTEGER NOT NULL DEFAULT 0")
+        if "unit_super_carro_transferencia" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN unit_super_carro_transferencia REAL NOT NULL DEFAULT 0")
         if "combo_transferencia_qty" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN combo_transferencia_qty INTEGER NOT NULL DEFAULT 0")
         if "unit_combo_transferencia" not in columns:
@@ -2413,15 +2727,29 @@ def init_db() -> None:
             connection.execute("ALTER TABLE records ADD COLUMN caminhao_transferencia_qty INTEGER NOT NULL DEFAULT 0")
         if "unit_caminhao_transferencia" not in columns:
             connection.execute("ALTER TABLE records ADD COLUMN unit_caminhao_transferencia REAL NOT NULL DEFAULT 0")
+        if "super_carro_cautelar_qty" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN super_carro_cautelar_qty INTEGER NOT NULL DEFAULT 0")
+        if "unit_super_carro_cautelar" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN unit_super_carro_cautelar REAL NOT NULL DEFAULT 0")
+        if "diversos_qty" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN diversos_qty INTEGER NOT NULL DEFAULT 0")
+        if "unit_diversos" not in columns:
+            connection.execute("ALTER TABLE records ADD COLUMN unit_diversos REAL NOT NULL DEFAULT 0")
         client_columns = {row["name"] for row in connection.execute("PRAGMA table_info(clients)").fetchall()}
         if "price_transferencia" not in client_columns:
             connection.execute("ALTER TABLE clients ADD COLUMN price_transferencia REAL NOT NULL DEFAULT 0")
+        if "price_moto_transferencia" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_moto_transferencia REAL NOT NULL DEFAULT 0")
+        if "price_super_carro_transferencia" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_super_carro_transferencia REAL NOT NULL DEFAULT 0")
         if "price_caminhao_transferencia" not in client_columns:
             connection.execute("ALTER TABLE clients ADD COLUMN price_caminhao_transferencia REAL NOT NULL DEFAULT 0")
         if "price_combo_transferencia" not in client_columns:
             connection.execute("ALTER TABLE clients ADD COLUMN price_combo_transferencia REAL NOT NULL DEFAULT 0")
         if "price_cautelar" not in client_columns:
             connection.execute("ALTER TABLE clients ADD COLUMN price_cautelar REAL NOT NULL DEFAULT 0")
+        if "price_super_carro_cautelar" not in client_columns:
+            connection.execute("ALTER TABLE clients ADD COLUMN price_super_carro_cautelar REAL NOT NULL DEFAULT 0")
         if "price_pesquisa" not in client_columns:
             connection.execute("ALTER TABLE clients ADD COLUMN price_pesquisa REAL NOT NULL DEFAULT 0")
         if "price_diversos" not in client_columns:
@@ -3189,33 +3517,49 @@ def create_record():
                 period_sort,
                 partner_name,
                 transferencia_qty,
+                moto_transferencia_qty,
+                super_carro_transferencia_qty,
                 caminhao_transferencia_qty,
                 combo_transferencia_qty,
                 cautelar_qty,
+                super_carro_cautelar_qty,
                 pesquisa_qty,
+                diversos_qty,
                 unit_transferencia,
+                unit_moto_transferencia,
+                unit_super_carro_transferencia,
                 unit_caminhao_transferencia,
                 unit_combo_transferencia,
                 unit_cautelar,
+                unit_super_carro_cautelar,
                 unit_pesquisa,
+                unit_diversos,
                 total_value,
                 updated_at
-            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, NULL, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
             (
                 record["month_key"],
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["moto_transferencia_qty"],
+                record["super_carro_transferencia_qty"],
                 record["caminhao_transferencia_qty"],
                 record["combo_transferencia_qty"],
                 record["cautelar_qty"],
+                record["super_carro_cautelar_qty"],
                 record["pesquisa_qty"],
+                record["diversos_qty"],
                 record["unit_transferencia"],
+                record["unit_moto_transferencia"],
+                record["unit_super_carro_transferencia"],
                 record["unit_caminhao_transferencia"],
                 record["unit_combo_transferencia"],
                 record["unit_cautelar"],
+                record["unit_super_carro_cautelar"],
                 record["unit_pesquisa"],
+                record["unit_diversos"],
                 record["total_value"],
             ),
         )
@@ -3247,15 +3591,23 @@ def update_record(record_id: int):
                 period_label = ?,
                 partner_name = ?,
                 transferencia_qty = ?,
+                moto_transferencia_qty = ?,
+                super_carro_transferencia_qty = ?,
                 caminhao_transferencia_qty = ?,
                 combo_transferencia_qty = ?,
                 cautelar_qty = ?,
+                super_carro_cautelar_qty = ?,
                 pesquisa_qty = ?,
+                diversos_qty = ?,
                 unit_transferencia = ?,
+                unit_moto_transferencia = ?,
+                unit_super_carro_transferencia = ?,
                 unit_caminhao_transferencia = ?,
                 unit_combo_transferencia = ?,
                 unit_cautelar = ?,
+                unit_super_carro_cautelar = ?,
                 unit_pesquisa = ?,
+                unit_diversos = ?,
                 total_value = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
@@ -3265,15 +3617,23 @@ def update_record(record_id: int):
                 record["period_label"],
                 record["partner_name"],
                 record["transferencia_qty"],
+                record["moto_transferencia_qty"],
+                record["super_carro_transferencia_qty"],
                 record["caminhao_transferencia_qty"],
                 record["combo_transferencia_qty"],
                 record["cautelar_qty"],
+                record["super_carro_cautelar_qty"],
                 record["pesquisa_qty"],
+                record["diversos_qty"],
                 record["unit_transferencia"],
+                record["unit_moto_transferencia"],
+                record["unit_super_carro_transferencia"],
                 record["unit_caminhao_transferencia"],
                 record["unit_combo_transferencia"],
                 record["unit_cautelar"],
+                record["unit_super_carro_cautelar"],
                 record["unit_pesquisa"],
+                record["unit_diversos"],
                 record["total_value"],
                 record_id,
             ),

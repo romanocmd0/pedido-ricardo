@@ -66,7 +66,7 @@ function buildPieChart(target, labels, values) {
       datasets: [
         {
           data: values,
-          backgroundColor: ["#d4af37", "#8cc7ff", "#4fd3a7", "#f59f70", "#ff8aa6"],
+          backgroundColor: ["#d4af37", "#8cc7ff", "#4fd3a7", "#f59f70", "#ff8aa6", "#7ee0ff", "#7fa8ff", "#ffc857", "#9ad59a"],
         },
       ],
     },
@@ -85,7 +85,7 @@ function renderComparisonTable(months) {
   counter.textContent = `${months.length}`;
 
   if (!months.length) {
-    body.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum dado disponivel para comparacao.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum dado disponivel para comparacao.</td></tr>';
     return;
   }
 
@@ -99,6 +99,7 @@ function renderComparisonTable(months) {
       <td>${formatCurrency(month.transferencia_total_value)}</td>
       <td>${formatCurrency(month.cautelar_total_value)}</td>
       <td>${formatCurrency(month.pesquisa_total_value)}</td>
+      <td>${formatCurrency(month.diversos_total_value)}</td>
     `;
     row.addEventListener("click", async () => {
       comparisonState.selectedMonthKey = month.month_key;
@@ -246,8 +247,9 @@ async function compareSelectedMonths() {
   const metrics = [
     ["Total geral", "total_value"],
     ["Transferencias", "transferencia_total_value"],
-    ["Cautelar", "cautelar_total_value"],
+    ["Cautelares", "cautelar_total_value"],
     ["Pesquisa", "pesquisa_total_value"],
+    ["Diversos", "diversos_total_value"],
   ];
   container.innerHTML = metrics
     .map(([label, key]) => {
@@ -274,13 +276,15 @@ async function compareSelectedMonths() {
   const valueMetrics = [
     ["Total geral", "total_value"],
     ["Transferencias", "transferencia_total_value"],
-    ["Cautelar", "cautelar_total_value"],
+    ["Cautelares", "cautelar_total_value"],
     ["Pesquisa", "pesquisa_total_value"],
+    ["Diversos", "diversos_total_value"],
   ];
   const quantityMetrics = [
     ["Transferencias", "transferencia_qty"],
-    ["Cautelar", "cautelar_qty"],
+    ["Cautelares", "cautelar_qty"],
     ["Pesquisa", "pesquisa_qty"],
+    ["Diversos", "diversos_qty"],
   ];
 
   setCanvasState("#month-values-compare-canvas", "#month-values-compare-empty", true);

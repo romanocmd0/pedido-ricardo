@@ -23,18 +23,15 @@ const elements = {
   summaryTotalValue: document.querySelector("#summary-total-value"),
   summaryTransferenciaQty: document.querySelector("#summary-transferencia-qty"),
   summaryTransferenciaPct: document.querySelector("#summary-transferencia-pct"),
-  summaryCaminhaoTransferenciaQty: document.querySelector("#summary-caminhao-transferencia-qty"),
-  summaryCaminhaoTransferenciaPct: document.querySelector("#summary-caminhao-transferencia-pct"),
-  summaryComboTransferenciaQty: document.querySelector("#summary-combo-transferencia-qty"),
-  summaryComboTransferenciaPct: document.querySelector("#summary-combo-transferencia-pct"),
   summaryCautelarQty: document.querySelector("#summary-cautelar-qty"),
   summaryCautelarPct: document.querySelector("#summary-cautelar-pct"),
   summaryPesquisaQty: document.querySelector("#summary-pesquisa-qty"),
   summaryPesquisaPct: document.querySelector("#summary-pesquisa-pct"),
   summaryTransferenciaTotalValue: document.querySelector("#summary-transferencia-total-value"),
-  summaryComboTransferenciaTotalValue: document.querySelector("#summary-combo-transferencia-total-value"),
   summaryCautelarTotalValue: document.querySelector("#summary-cautelar-total-value"),
+  summaryDiversosTotalValue: document.querySelector("#summary-diversos-total-value"),
   summaryPesquisaTotalValue: document.querySelector("#summary-pesquisa-total-value"),
+  serviceBreakdownGrid: document.querySelector("#service-breakdown-grid"),
   formTitle: document.querySelector("#form-title"),
   formMonthCaption: document.querySelector("#form-month-caption"),
   form: document.querySelector("#record-form"),
@@ -79,15 +76,23 @@ function currentPayload() {
     month_key: state.activeMonthKey,
     partner_name: elements.partnerName.value.trim(),
     transferencia_qty: Number(elements.transferenciaQty.value || 0),
+    moto_transferencia_qty: 0,
+    super_carro_transferencia_qty: 0,
     caminhao_transferencia_qty: Number(elements.caminhaoTransferenciaQty.value || 0),
     combo_transferencia_qty: Number(elements.comboTransferenciaQty.value || 0),
     cautelar_qty: Number(elements.cautelarQty.value || 0),
+    super_carro_cautelar_qty: 0,
     pesquisa_qty: Number(elements.pesquisaQty.value || 0),
+    diversos_qty: 0,
     unit_transferencia: Number(elements.unitTransferencia.value || 0),
+    unit_moto_transferencia: 0,
+    unit_super_carro_transferencia: 0,
     unit_caminhao_transferencia: Number(elements.unitCaminhaoTransferencia.value || 0),
     unit_combo_transferencia: Number(elements.unitComboTransferencia.value || 0),
     unit_cautelar: Number(elements.unitCautelar.value || 0),
+    unit_super_carro_cautelar: 0,
     unit_pesquisa: Number(elements.unitPesquisa.value || 0),
+    unit_diversos: 0,
   };
 }
 
@@ -96,25 +101,37 @@ function recordPayloadFromInputs(row) {
     month_key: state.activeMonthKey,
     partner_name: row.querySelector('[data-field="partner_name"]').value.trim(),
     transferencia_qty: Number(row.querySelector('[data-field="transferencia_qty"]').value || 0),
+    moto_transferencia_qty: Number(row.querySelector('[data-field="moto_transferencia_qty"]').value || 0),
+    super_carro_transferencia_qty: Number(row.querySelector('[data-field="super_carro_transferencia_qty"]').value || 0),
     caminhao_transferencia_qty: Number(row.querySelector('[data-field="caminhao_transferencia_qty"]').value || 0),
     combo_transferencia_qty: Number(row.querySelector('[data-field="combo_transferencia_qty"]').value || 0),
     cautelar_qty: Number(row.querySelector('[data-field="cautelar_qty"]').value || 0),
+    super_carro_cautelar_qty: Number(row.querySelector('[data-field="super_carro_cautelar_qty"]').value || 0),
     pesquisa_qty: Number(row.querySelector('[data-field="pesquisa_qty"]').value || 0),
+    diversos_qty: Number(row.querySelector('[data-field="diversos_qty"]').value || 0),
     unit_transferencia: Number(row.querySelector('[data-field="unit_transferencia"]').value || 0),
+    unit_moto_transferencia: Number(row.querySelector('[data-field="unit_moto_transferencia"]').value || 0),
+    unit_super_carro_transferencia: Number(row.querySelector('[data-field="unit_super_carro_transferencia"]').value || 0),
     unit_caminhao_transferencia: Number(row.querySelector('[data-field="unit_caminhao_transferencia"]').value || 0),
     unit_combo_transferencia: Number(row.querySelector('[data-field="unit_combo_transferencia"]').value || 0),
     unit_cautelar: Number(row.querySelector('[data-field="unit_cautelar"]').value || 0),
+    unit_super_carro_cautelar: Number(row.querySelector('[data-field="unit_super_carro_cautelar"]').value || 0),
     unit_pesquisa: Number(row.querySelector('[data-field="unit_pesquisa"]').value || 0),
+    unit_diversos: Number(row.querySelector('[data-field="unit_diversos"]').value || 0),
   };
 }
 
 function calculateTotal(payload) {
   return (
     payload.transferencia_qty * payload.unit_transferencia +
+    payload.moto_transferencia_qty * payload.unit_moto_transferencia +
+    payload.super_carro_transferencia_qty * payload.unit_super_carro_transferencia +
     payload.caminhao_transferencia_qty * payload.unit_caminhao_transferencia +
     payload.combo_transferencia_qty * payload.unit_combo_transferencia +
     payload.cautelar_qty * payload.unit_cautelar +
-    payload.pesquisa_qty * payload.unit_pesquisa
+    payload.super_carro_cautelar_qty * payload.unit_super_carro_cautelar +
+    payload.pesquisa_qty * payload.unit_pesquisa +
+    payload.diversos_qty * payload.unit_diversos
   );
 }
 
@@ -182,23 +199,29 @@ function renderSummary() {
   const summary = state.summary || {
     total_value: 0,
     transferencia_qty: 0,
+    moto_transferencia_qty: 0,
+    super_carro_transferencia_qty: 0,
     caminhao_transferencia_qty: 0,
     combo_transferencia_qty: 0,
     cautelar_qty: 0,
+    super_carro_cautelar_qty: 0,
     pesquisa_qty: 0,
+    diversos_qty: 0,
     transferencia_pct: 0,
-    caminhao_transferencia_pct: 0,
-    combo_transferencia_pct: 0,
     cautelar_pct: 0,
     pesquisa_pct: 0,
+    diversos_pct: 0,
     transferencia_total_value: 0,
     transferencia_group_qty: 0,
     transferencia_group_total_value: 0,
-    caminhao_transferencia_total_value: 0,
-    combo_transferencia_total_value: 0,
+    cautelar_group_qty: 0,
+    cautelar_group_total_value: 0,
     cautelar_total_value: 0,
+    super_carro_cautelar_total_value: 0,
     pesquisa_total_value: 0,
+    diversos_total_value: 0,
     record_count: 0,
+    service_breakdown: [],
   };
 
   elements.activeMonthTitle.textContent = getActiveMonth()?.month_title || "Relatorio Mensal";
@@ -207,30 +230,33 @@ function renderSummary() {
   elements.summaryTotalValue.textContent = formatCurrency(summary.total_value);
   elements.summaryTransferenciaQty.textContent = String(summary.transferencia_group_qty || summary.transferencia_qty || 0);
   elements.summaryTransferenciaPct.textContent = formatPercent(summary.transferencia_pct);
-  if (elements.summaryCaminhaoTransferenciaQty) {
-    elements.summaryCaminhaoTransferenciaQty.textContent = String(summary.caminhao_transferencia_qty || 0);
-  }
-  if (elements.summaryCaminhaoTransferenciaPct) {
-    elements.summaryCaminhaoTransferenciaPct.textContent = formatPercent(summary.caminhao_transferencia_pct);
-  }
-  if (elements.summaryComboTransferenciaQty) {
-    elements.summaryComboTransferenciaQty.textContent = String(summary.combo_transferencia_qty || 0);
-  }
-  if (elements.summaryComboTransferenciaPct) {
-    elements.summaryComboTransferenciaPct.textContent = formatPercent(summary.combo_transferencia_pct);
-  }
-  elements.summaryCautelarQty.textContent = String(summary.cautelar_qty || 0);
+  elements.summaryCautelarQty.textContent = String(summary.cautelar_group_qty || summary.cautelar_qty || 0);
   elements.summaryCautelarPct.textContent = formatPercent(summary.cautelar_pct);
   elements.summaryPesquisaQty.textContent = String(summary.pesquisa_qty || 0);
   elements.summaryPesquisaPct.textContent = formatPercent(summary.pesquisa_pct);
   elements.summaryTransferenciaTotalValue.textContent = formatCurrency(
     summary.transferencia_group_total_value || summary.transferencia_total_value
   );
-  if (elements.summaryComboTransferenciaTotalValue) {
-    elements.summaryComboTransferenciaTotalValue.textContent = formatCurrency(summary.combo_transferencia_total_value);
+  elements.summaryCautelarTotalValue.textContent = formatCurrency(
+    summary.cautelar_group_total_value || summary.cautelar_total_value
+  );
+  if (elements.summaryDiversosTotalValue) {
+    elements.summaryDiversosTotalValue.textContent = formatCurrency(summary.diversos_total_value);
   }
-  elements.summaryCautelarTotalValue.textContent = formatCurrency(summary.cautelar_total_value);
   elements.summaryPesquisaTotalValue.textContent = formatCurrency(summary.pesquisa_total_value);
+  if (elements.serviceBreakdownGrid) {
+    elements.serviceBreakdownGrid.innerHTML = (summary.service_breakdown || [])
+      .map(
+        (item) => `
+          <div class="breakdown-card">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${formatCurrency(item.total_value)}</strong>
+            <p>${item.quantity} operacao(oes)</p>
+          </div>
+        `
+      )
+      .join("");
+  }
 }
 
 function renderReadonlyCell(value, field, isCurrency = false) {
@@ -253,15 +279,23 @@ function recordPayloadFromInlineRecord(record) {
     month_key: state.activeMonthKey,
     partner_name: record.partner_name,
     transferencia_qty: Number(record.transferencia_qty || 0),
+    moto_transferencia_qty: Number(record.moto_transferencia_qty || 0),
+    super_carro_transferencia_qty: Number(record.super_carro_transferencia_qty || 0),
     caminhao_transferencia_qty: Number(record.caminhao_transferencia_qty || 0),
     combo_transferencia_qty: Number(record.combo_transferencia_qty || 0),
     cautelar_qty: Number(record.cautelar_qty || 0),
+    super_carro_cautelar_qty: Number(record.super_carro_cautelar_qty || 0),
     pesquisa_qty: Number(record.pesquisa_qty || 0),
+    diversos_qty: Number(record.diversos_qty || 0),
     unit_transferencia: Number(record.unit_transferencia || 0),
+    unit_moto_transferencia: Number(record.unit_moto_transferencia || 0),
+    unit_super_carro_transferencia: Number(record.unit_super_carro_transferencia || 0),
     unit_caminhao_transferencia: Number(record.unit_caminhao_transferencia || 0),
     unit_combo_transferencia: Number(record.unit_combo_transferencia || 0),
     unit_cautelar: Number(record.unit_cautelar || 0),
+    unit_super_carro_cautelar: Number(record.unit_super_carro_cautelar || 0),
     unit_pesquisa: Number(record.unit_pesquisa || 0),
+    unit_diversos: Number(record.unit_diversos || 0),
   };
 }
 
@@ -330,7 +364,7 @@ function attachEditingEvents(rowElement, recordId) {
 
 function renderTable() {
   if (!state.records.length) {
-    elements.recordsBody.innerHTML = '<tr><td colspan="13" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
+    elements.recordsBody.innerHTML = '<tr><td colspan="21" class="empty-state">Nenhum registro encontrado para este mes.</td></tr>';
     return;
   }
 
@@ -344,15 +378,23 @@ function renderTable() {
       row.className = "editing-row";
       row.innerHTML = `
         ${renderEditableCell(record.partner_name, "partner_name", "text")}
-        ${renderEditableCell(record.transferencia_qty, "transferencia_qty")}
+        ${renderEditableCell(record.cautelar_qty, "cautelar_qty")}
+        ${renderEditableCell(record.super_carro_cautelar_qty, "super_carro_cautelar_qty")}
+        ${renderEditableCell(record.diversos_qty, "diversos_qty")}
+        ${renderEditableCell(record.pesquisa_qty, "pesquisa_qty")}
         ${renderEditableCell(record.caminhao_transferencia_qty, "caminhao_transferencia_qty")}
         ${renderEditableCell(record.combo_transferencia_qty, "combo_transferencia_qty")}
-        ${renderEditableCell(record.cautelar_qty, "cautelar_qty")}
-        ${renderEditableCell(record.pesquisa_qty, "pesquisa_qty")}
-        ${renderEditableCell(record.unit_transferencia, "unit_transferencia", "number", "0.01")}
+        ${renderEditableCell(record.transferencia_qty, "transferencia_qty")}
+        ${renderEditableCell(record.moto_transferencia_qty, "moto_transferencia_qty")}
+        ${renderEditableCell(record.super_carro_transferencia_qty, "super_carro_transferencia_qty")}
         ${renderEditableCell(record.unit_caminhao_transferencia, "unit_caminhao_transferencia", "number", "0.01")}
         ${renderEditableCell(record.unit_combo_transferencia, "unit_combo_transferencia", "number", "0.01")}
+        ${renderEditableCell(record.unit_transferencia, "unit_transferencia", "number", "0.01")}
+        ${renderEditableCell(record.unit_moto_transferencia, "unit_moto_transferencia", "number", "0.01")}
+        ${renderEditableCell(record.unit_super_carro_transferencia, "unit_super_carro_transferencia", "number", "0.01")}
         ${renderEditableCell(record.unit_cautelar, "unit_cautelar", "number", "0.01")}
+        ${renderEditableCell(record.unit_super_carro_cautelar, "unit_super_carro_cautelar", "number", "0.01")}
+        ${renderEditableCell(record.unit_diversos, "unit_diversos", "number", "0.01")}
         ${renderEditableCell(record.unit_pesquisa, "unit_pesquisa", "number", "0.01")}
         <td class="inline-total">${formatCurrency(calculateTotal(recordPayloadFromInlineRecord(record)))}</td>
         <td></td>
@@ -360,15 +402,23 @@ function renderTable() {
     } else {
       row.innerHTML = `
         ${renderReadonlyCell(record.partner_name, "partner_name")}
-        ${renderReadonlyCell(record.transferencia_qty, "transferencia_qty")}
+        ${renderReadonlyCell(record.cautelar_qty, "cautelar_qty")}
+        ${renderReadonlyCell(record.super_carro_cautelar_qty, "super_carro_cautelar_qty")}
+        ${renderReadonlyCell(record.diversos_qty, "diversos_qty")}
+        ${renderReadonlyCell(record.pesquisa_qty, "pesquisa_qty")}
         ${renderReadonlyCell(record.caminhao_transferencia_qty, "caminhao_transferencia_qty")}
         ${renderReadonlyCell(record.combo_transferencia_qty, "combo_transferencia_qty")}
-        ${renderReadonlyCell(record.cautelar_qty, "cautelar_qty")}
-        ${renderReadonlyCell(record.pesquisa_qty, "pesquisa_qty")}
-        ${renderReadonlyCell(record.unit_transferencia, "unit_transferencia", true)}
+        ${renderReadonlyCell(record.transferencia_qty, "transferencia_qty")}
+        ${renderReadonlyCell(record.moto_transferencia_qty, "moto_transferencia_qty")}
+        ${renderReadonlyCell(record.super_carro_transferencia_qty, "super_carro_transferencia_qty")}
         ${renderReadonlyCell(record.unit_caminhao_transferencia, "unit_caminhao_transferencia", true)}
         ${renderReadonlyCell(record.unit_combo_transferencia, "unit_combo_transferencia", true)}
+        ${renderReadonlyCell(record.unit_transferencia, "unit_transferencia", true)}
+        ${renderReadonlyCell(record.unit_moto_transferencia, "unit_moto_transferencia", true)}
+        ${renderReadonlyCell(record.unit_super_carro_transferencia, "unit_super_carro_transferencia", true)}
         ${renderReadonlyCell(record.unit_cautelar, "unit_cautelar", true)}
+        ${renderReadonlyCell(record.unit_super_carro_cautelar, "unit_super_carro_cautelar", true)}
+        ${renderReadonlyCell(record.unit_diversos, "unit_diversos", true)}
         ${renderReadonlyCell(record.unit_pesquisa, "unit_pesquisa", true)}
         <td class="editable-cell total-cell" data-start-edit="total_value">${formatCurrency(record.total_value)}</td>
         <td></td>
