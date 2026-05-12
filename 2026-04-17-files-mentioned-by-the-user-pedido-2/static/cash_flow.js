@@ -67,6 +67,9 @@ const cashPageMode = {
   hasClientRegistration: Boolean(cashElements.clientRegistrationForm),
 };
 
+const serviceNavButtons = document.querySelectorAll("[data-service-nav]");
+const serviceViews = document.querySelectorAll("[data-service-view]");
+
 const servicePriceFieldMap = {
   Transferencia: "price_transferencia",
   "Transf. de Caminhao": "price_caminhao_transferencia",
@@ -678,10 +681,24 @@ function setupEvents() {
   cashElements.finalizeButton?.addEventListener("click", () => setFinalized(true));
   cashElements.reopenButton?.addEventListener("click", () => setFinalized(false));
   cashElements.deleteDayButton?.addEventListener("click", deleteCashDay);
+  if (serviceNavButtons.length && serviceViews.length) {
+    serviceNavButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.serviceNav;
+        if (!key || button.classList.contains("is-active")) return;
+        serviceNavButtons.forEach((item) => {
+          item.classList.toggle("is-active", item.dataset.serviceNav === key);
+        });
+        serviceViews.forEach((view) => {
+          view.classList.toggle("is-active", view.dataset.serviceView === key);
+        });
+      });
+    });
+  }
   setupGuidedFormEvents();
 }
 
-if (cashElements.dateInput && cashElements.body) {
+if (cashElements.dateInput && (cashElements.body || cashPageMode.hasEntryForm || cashPageMode.hasClientRegistration || cashPageMode.hasPartnerPaymentForm)) {
   syncDateInput();
   setupEvents();
   loadClientSuggestions().then(() => updateGuidedFlow());

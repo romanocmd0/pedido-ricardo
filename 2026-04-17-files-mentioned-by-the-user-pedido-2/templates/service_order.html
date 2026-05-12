@@ -14,7 +14,22 @@
         <a class="nav-button" href="/cash-flow">Financeiro</a>
       </nav>
 
-      <section class="panel cash-main-panel service-order-panel">
+      <section class="reports-shell service-order-shell">
+        <aside class="panel reports-sidebar">
+          <div class="reports-sidebar-header">
+            <p class="section-tag">Ordem de Servico</p>
+            <h1>Menu</h1>
+          </div>
+          <div class="reports-sidebar-nav">
+            <button class="report-nav-button is-active" type="button" data-service-nav="new-client">Novo cadastro</button>
+            <button class="report-nav-button" type="button" data-service-nav="manage-clients">Gerenciar cadastros</button>
+            <button class="report-nav-button" type="button" data-service-nav="service-order">Ordem de servico</button>
+            <button class="report-nav-button" type="button" data-service-nav="partner-payment">Pagamento parceiro</button>
+          </div>
+        </aside>
+
+        <div class="reports-content-area">
+      <section class="panel report-view service-order-view is-active" data-service-view="new-client">
         <section class="client-registration-section">
           <div class="section-header">
             <div>
@@ -59,7 +74,11 @@
               <button id="client-registration-clear" class="secondary-button" type="button">Limpar</button>
             </div>
           </form>
+        </section>
+      </section>
 
+      <section class="panel report-view service-order-view" data-service-view="manage-clients">
+        <section class="client-registration-section">
           <div class="section-header client-list-header">
             <div>
               <p class="section-tag">Clientes cadastrados</p>
@@ -91,7 +110,9 @@
             </table>
           </div>
         </section>
+      </section>
 
+      <section class="panel report-view service-order-view" data-service-view="service-order">
         <div class="section-header service-order-header">
           <div class="service-order-date-field">
             <label class="field compact">
@@ -160,7 +181,9 @@
             <button id="clear-cash-form-button" class="secondary-button" type="button">Limpar</button>
           </div>
         </form>
+      </section>
 
+      <section class="panel report-view service-order-view" data-service-view="partner-payment">
         <section class="partner-payment-section">
           <div class="section-header">
             <div>
@@ -189,72 +212,9 @@
             </div>
           </form>
         </section>
-
-        <section class="summary-grid cash-summary-grid">
-          <article class="panel stat-card">
-            <span class="section-tag">Dinheiro</span>
-            <strong id="cash-total-dinheiro">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Cartao debito</span>
-            <strong id="cash-total-debito">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Cartao credito</span>
-            <strong id="cash-total-credito">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">PIX</span>
-            <strong id="cash-total-pix">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Outras</span>
-            <strong id="cash-total-outras">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Cofre atual</span>
-            <strong id="cash-vault-balance">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Entrada</span>
-            <strong id="cash-total-in">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Saida</span>
-            <strong id="cash-total-out">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card">
-            <span class="section-tag">Depositos</span>
-            <strong id="cash-total-deposit">R$ 0,00</strong>
-          </article>
-          <article class="panel stat-card partner-payment-card">
-            <span class="section-tag">Total Pagamento Parceiros</span>
-            <strong id="cash-total-partner-payment">R$ 0,00</strong>
-            <p>Controle separado do resultado normal.</p>
-          </article>
-        </section>
-
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Placa</th>
-                <th>Servico</th>
-                <th>Valor</th>
-                <th>Pagamento</th>
-                <th>Tipo</th>
-                <th>Acoes</th>
-              </tr>
-            </thead>
-            <tbody id="cash-entries-body">
-              <tr>
-                <td colspan="7" class="empty-state">Selecione uma data para carregar os lancamentos.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
         <datalist id="client-name-suggestions"></datalist>
+      </section>
+        </div>
       </section>
     </main>
 
