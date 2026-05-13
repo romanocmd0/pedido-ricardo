@@ -27,6 +27,7 @@ DEFAULT_DATA_DIR = BASE_DIR / "data"
 DATA_DIR = Path(os.getenv("DATA_DIR", str(DEFAULT_DATA_DIR))).resolve()
 DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DATA_DIR / "pedidos.db"))).resolve()
 SEED_PATH = Path(os.getenv("SEED_PATH", str(DEFAULT_DATA_DIR / "seed_data.json"))).resolve()
+LOGO_PATH = BASE_DIR / "static" / "images" / "certive-logo.jpeg"
 
 MONTH_LABELS = {
     1: "JANEIRO",
@@ -113,6 +114,16 @@ app.config["JSON_AS_ASCII"] = False
 app.secret_key = os.getenv("SECRET_KEY") or os.getenv("APP_SECRET_KEY") or os.urandom(32)
 
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+
+
+def build_pdf_logo(width_mm: float = 28) -> ReportLabImage | None:
+    if not LOGO_PATH.exists():
+        return None
+    logo = ReportLabImage(str(LOGO_PATH))
+    logo.drawWidth = width_mm * mm
+    if logo.imageWidth:
+        logo.drawHeight = logo.drawWidth * (logo.imageHeight / logo.imageWidth)
+    return logo
 
 
 def get_db() -> sqlite3.Connection:
@@ -2156,7 +2167,11 @@ def build_pdf_report(report: dict[str, Any]) -> io.BytesIO:
         bottomMargin=10 * mm,
     )
     styles = getSampleStyleSheet()
-    story = [Paragraph(f"Relatorio Mensal - {report['month_title']}", styles["Title"]), Spacer(1, 8)]
+    logo = build_pdf_logo()
+    header_cells = [[logo if logo else "", Paragraph(f"Relatorio Mensal - {report['month_title']}", styles["Title"])]]
+    header_table = Table(header_cells, colWidths=[32 * mm, 230 * mm])
+    header_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story = [header_table, Spacer(1, 8)]
 
     summary = report["summary"]
     summary_data = [
@@ -2299,7 +2314,11 @@ def build_cash_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
     styles = getSampleStyleSheet()
     day = payload["day"]
     summary = payload["summary"]
-    story = [Paragraph(f"Fluxo de Caixa - {day['display_date']}", styles["Title"]), Spacer(1, 8)]
+    logo = build_pdf_logo()
+    header_cells = [[logo if logo else "", Paragraph(f"Fluxo de Caixa - {day['display_date']}", styles["Title"])]]
+    header_table = Table(header_cells, colWidths=[32 * mm, 230 * mm])
+    header_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story = [header_table, Spacer(1, 8)]
 
     summary_data = [
         ["Metrica", "Valor"],
@@ -2381,7 +2400,11 @@ def build_cash_month_pdf_report(payload: dict[str, Any]) -> io.BytesIO:
     )
     styles = getSampleStyleSheet()
     totals = payload["totals"]
-    story = [Paragraph(f"Fluxo de Caixa Mensal - {payload['month_title']}", styles["Title"]), Spacer(1, 8)]
+    logo = build_pdf_logo()
+    header_cells = [[logo if logo else "", Paragraph(f"Fluxo de Caixa Mensal - {payload['month_title']}", styles["Title"])]]
+    header_table = Table(header_cells, colWidths=[32 * mm, 230 * mm])
+    header_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story = [header_table, Spacer(1, 8)]
 
     summary_data = [
         ["Resumo do mes", "Valor"],
@@ -2542,23 +2565,27 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
     period_style.leading = 12
     period_style.alignment = 1
     story = []
+    logo = build_pdf_logo(24)
 
     header = Table(
         [
             [
+                logo if logo else "",
                 Paragraph(f"Chave PIX: {payload['pix_key']}", pix_style),
                 build_pix_qr_flowable(32 * mm),
             ],
             [
+                "",
                 Paragraph(f"<b>{payload['partner_name'].upper()}</b>", partner_style),
                 "",
             ],
             [
+                "",
                 Paragraph(payload["selected_period_label"] or "Todos os periodos", period_style),
                 "",
             ],
         ],
-        colWidths=[140 * mm, 36 * mm],
+        colWidths=[28 * mm, 112 * mm, 36 * mm],
     )
     header.setStyle(
         TableStyle(
@@ -2567,9 +2594,9 @@ def build_partner_request_pdf(payload: dict[str, Any]) -> io.BytesIO:
                 ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#D4AF37")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("SPAN", (1, 0), (1, 2)),
-                ("ALIGN", (0, 0), (0, 2), "CENTER"),
-                ("ALIGN", (1, 0), (1, 2), "CENTER"),
+                ("SPAN", (2, 0), (2, 2)),
+                ("SPAN", (0, 0), (0, 2)),
+                ("ALIGN", (0, 0), (2, 2), "CENTER"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 12),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 12),
                 ("TOPPADDING", (0, 0), (-1, -1), 10),
