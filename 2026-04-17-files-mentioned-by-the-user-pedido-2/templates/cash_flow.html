@@ -19,127 +19,143 @@
         </div>
       </nav>
 
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Caixa diario</p>
-          <h1 id="cash-day-title" data-prefix="Fluxo de Caixa de">Fluxo de Caixa</h1>
-        </div>
-        <div class="hero-card">
-          <div>
-            <span class="hero-label">Resultado do dia</span>
-            <strong id="cash-result">R$ 0,00</strong>
+      <section class="reports-shell finance-shell">
+        <aside class="panel reports-sidebar">
+          <div class="reports-sidebar-header">
+            <p class="section-tag">Financeiro</p>
+            <h1>Menu</h1>
           </div>
-          <div>
-            <span class="hero-label">Status</span>
-            <strong id="cash-status">Aberto</strong>
+          <div class="reports-sidebar-nav">
+            <button class="report-nav-button is-active" type="button" data-finance-nav="cash-flow">Fluxo de Caixa</button>
           </div>
-        </div>
-      </section>
-
-      <section class="cash-layout">
-        <aside class="panel cash-tree-panel">
-          <div class="section-header">
-            <div>
-              <p class="section-tag">Arquivo</p>
-              <h2>Ano / Mes / Dia</h2>
-            </div>
-          </div>
-          <label class="field">
-            <span>Criar ou abrir data</span>
-            <input id="cash-date-input" type="date" />
-          </label>
-          <button id="open-cash-day-button" class="primary-button" type="button">Abrir caixa</button>
-          <div id="cash-tree" class="cash-tree"></div>
         </aside>
 
-        <section class="panel cash-main-panel">
-          <div class="section-header">
-            <div>
-              <p class="section-tag">Historico diario</p>
-              <h2>Lancamentos registrados</h2>
-            </div>
-            <div class="form-actions">
-              <button id="export-cash-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
-              <button id="export-cash-month-pdf-button" class="secondary-button" type="button">Exportar PDF mensal</button>
-              <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
-              <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
-            </div>
-          </div>
+        <div class="reports-content-area">
+          <section class="panel report-view finance-view is-active" data-finance-view="cash-flow">
+            <section class="hero">
+              <div>
+                <p class="eyebrow">Caixa diario</p>
+                <h1 id="cash-day-title" data-prefix="Fluxo de Caixa de">Fluxo de Caixa</h1>
+              </div>
+              <div class="hero-card">
+                <div>
+                  <span class="hero-label">Resultado do dia</span>
+                  <strong id="cash-result">R$ 0,00</strong>
+                </div>
+                <div>
+                  <span class="hero-label">Status</span>
+                  <strong id="cash-status">Aberto</strong>
+                </div>
+              </div>
+            </section>
 
-          <section class="summary-grid cash-summary-grid">
-            <article class="panel stat-card">
-              <span class="section-tag">Dinheiro</span>
-              <strong id="cash-total-dinheiro">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Cartao debito</span>
-              <strong id="cash-total-debito">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Cartao credito</span>
-              <strong id="cash-total-credito">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">PIX</span>
-              <strong id="cash-total-pix">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Outras</span>
-              <strong id="cash-total-outras">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Cofre atual</span>
-              <strong id="cash-vault-balance">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Entrada</span>
-              <strong id="cash-total-in">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Saida</span>
-              <strong id="cash-total-out">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card">
-              <span class="section-tag">Depositos</span>
-              <strong id="cash-total-deposit">R$ 0,00</strong>
-            </article>
-            <article class="panel stat-card partner-payment-card">
-              <span class="section-tag">Total Pagamento Parceiros</span>
-              <strong id="cash-total-partner-payment">R$ 0,00</strong>
-              <p>Controle separado do resultado normal.</p>
-            </article>
+            <section class="cash-layout">
+              <aside class="panel cash-tree-panel">
+                <div class="section-header">
+                  <div>
+                    <p class="section-tag">Arquivo</p>
+                    <h2>Ano / Mes / Dia</h2>
+                  </div>
+                </div>
+                <label class="field">
+                  <span>Criar ou abrir data</span>
+                  <input id="cash-date-input" type="date" />
+                </label>
+                <button id="open-cash-day-button" class="primary-button" type="button">Abrir caixa</button>
+                <div id="cash-tree" class="cash-tree"></div>
+              </aside>
+
+              <section class="panel cash-main-panel">
+                <div class="section-header">
+                  <div>
+                    <p class="section-tag">Historico diario</p>
+                    <h2>Lancamentos registrados</h2>
+                  </div>
+                  <div class="form-actions">
+                    <button id="export-cash-pdf-button" class="secondary-button" type="button">Exportar PDF</button>
+                    <button id="export-cash-month-pdf-button" class="secondary-button" type="button">Exportar PDF mensal</button>
+                    <button id="finalize-cash-button" class="primary-button" type="button">Finalizar caixa</button>
+                    <button id="reopen-cash-button" class="secondary-button" type="button">Reabrir</button>
+                  </div>
+                </div>
+
+                <section class="summary-grid cash-summary-grid">
+                  <article class="panel stat-card">
+                    <span class="section-tag">Dinheiro</span>
+                    <strong id="cash-total-dinheiro">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Cartao debito</span>
+                    <strong id="cash-total-debito">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Cartao credito</span>
+                    <strong id="cash-total-credito">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">PIX</span>
+                    <strong id="cash-total-pix">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Outras</span>
+                    <strong id="cash-total-outras">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Cofre atual</span>
+                    <strong id="cash-vault-balance">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Entrada</span>
+                    <strong id="cash-total-in">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Saida</span>
+                    <strong id="cash-total-out">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card">
+                    <span class="section-tag">Depositos</span>
+                    <strong id="cash-total-deposit">R$ 0,00</strong>
+                  </article>
+                  <article class="panel stat-card partner-payment-card">
+                    <span class="section-tag">Total Pagamento Parceiros</span>
+                    <strong id="cash-total-partner-payment">R$ 0,00</strong>
+                    <p>Controle separado do resultado normal.</p>
+                  </article>
+                </section>
+
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Cliente</th>
+                        <th>Placa</th>
+                        <th>Servico</th>
+                        <th>Valor</th>
+                        <th>Pagamento</th>
+                        <th>Tipo</th>
+                        <th>Acoes</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cash-entries-body">
+                      <tr>
+                        <td colspan="7" class="empty-state">Selecione uma data para carregar o caixa.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <section class="danger-zone">
+                  <div>
+                    <p class="section-tag">Acao permanente</p>
+                    <h2>Excluir caixa diario</h2>
+                    <p>Remove todos os lancamentos deste dia e desfaz os impactos vinculados ao Relatorio Mensal.</p>
+                  </div>
+                  <button id="delete-cash-day-button" class="danger-action-button" type="button">Excluir caixa</button>
+                </section>
+              </section>
+            </section>
           </section>
-
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Placa</th>
-                  <th>Servico</th>
-                  <th>Valor</th>
-                  <th>Pagamento</th>
-                  <th>Tipo</th>
-                  <th>Acoes</th>
-                </tr>
-              </thead>
-              <tbody id="cash-entries-body">
-                <tr>
-                  <td colspan="7" class="empty-state">Selecione uma data para carregar o caixa.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <section class="danger-zone">
-            <div>
-              <p class="section-tag">Acao permanente</p>
-              <h2>Excluir caixa diario</h2>
-              <p>Remove todos os lancamentos deste dia e desfaz os impactos vinculados ao Relatorio Mensal.</p>
-            </div>
-            <button id="delete-cash-day-button" class="danger-action-button" type="button">Excluir caixa</button>
-          </section>
-        </section>
+        </div>
       </section>
     </main>
 

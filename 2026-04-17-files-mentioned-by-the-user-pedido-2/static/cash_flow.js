@@ -74,6 +74,8 @@ const cashPageMode = {
 
 const serviceNavButtons = document.querySelectorAll("[data-service-nav]");
 const serviceViews = document.querySelectorAll("[data-service-view]");
+const financeNavButtons = document.querySelectorAll("[data-finance-nav]");
+const financeViews = document.querySelectorAll("[data-finance-view]");
 
 const servicePriceFieldMap = {
   Cautelar: "price_cautelar",
@@ -729,6 +731,35 @@ function setupEvents() {
         });
         serviceViews.forEach((view) => {
           view.classList.toggle("is-active", view.dataset.serviceView === key);
+        });
+      });
+    });
+  }
+
+  if (financeNavButtons.length && financeViews.length) {
+    financeNavButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.financeNav;
+        if (!key || button.classList.contains("is-active")) return;
+        financeNavButtons.forEach((item) => {
+          item.classList.toggle("is-active", item.dataset.financeNav === key);
+        });
+        financeViews.forEach((view) => {
+          view.classList.toggle("is-active", view.dataset.financeView === key);
+        });
+      });
+    });
+  }
+  if (financeNavButtons.length && financeViews.length) {
+    financeNavButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.financeNav;
+        if (!key || button.classList.contains("is-active")) return;
+        financeNavButtons.forEach((item) => {
+          item.classList.toggle("is-active", item.dataset.financeNav === key);
+        });
+        financeViews.forEach((view) => {
+          view.classList.toggle("is-active", view.dataset.financeView === key);
         });
       });
     });
